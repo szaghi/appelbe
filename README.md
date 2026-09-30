@@ -3,8 +3,9 @@
 >#### Electron transport modified by collisions with fast ions
 > A KISS Fortran 2018 reproduction of Appelbe *et al.*, *Phys. Plasmas* **26**, 102704 (2019), Secs. IV–VI: the simple-algebraic closure, the kinetic Fokker–Planck solver behind it, and a LaTeX report comparing every result with the paper.
 
+[![GitHub tag](https://img.shields.io/github/v/tag/szaghi/appelbe)](https://github.com/szaghi/appelbe/tags)
 [![GitHub issues](https://img.shields.io/github/issues/szaghi/appelbe)](https://github.com/szaghi/appelbe/issues)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](LICENSE.md)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://github.com/szaghi/appelbe/blob/main/LICENSE.md)
 
 | 🧮 **Simple-algebraic closure**<br>Appendix C fits of the collisionally induced current `j⁰_eα` and heat flow `ζ_eα` (α in DT) | ⚛️ **Kinetic solver**<br>Linearised electron `f₁` equation (Eq. 13) with e–e, e–i and e–fast-ion Fokker–Planck operators | 🔀 **Two solution methods**<br>The paper's Appendix B procedure (`GG + Ω²`) and an equivalent complex form `(G + iωτ) f₁ = g₇` | ✅ **Verified**<br>Epperlein–Haines Z=1 coefficients to 4 digits, exact Lorentz limits, Onsager symmetry to 5e-8 |
 |:---:|:---:|:---:|:---:|
