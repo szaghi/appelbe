@@ -12,14 +12,15 @@
 # What it does:
 #   1. Pre-flight: branch, remote freshness, clean tree, tag uniqueness
 #   2. Runs git-cliff to regenerate CHANGELOG.md up to the new version
-#   3. Updates VERSION file
+#   3. Updates the VERSION file (the single version source of the project)
 #   4. Commits CHANGELOG.md + VERSION with a conventional "chore(release)" message
 #   5. Creates an annotated git tag
-#   6. Pushes commit + tag  →  triggers the release.yml workflow on GitHub
+#   6. Pushes commit + tag to origin (no release workflow: the tag is the release)
 #
 # Requirements:
 #   git-cliff  →  cargo install git-cliff
 #                 or: https://github.com/orhun/git-cliff/releases
+#   cliff.toml at the repository root (changelog template)
 
 set -euo pipefail
 
@@ -45,6 +46,7 @@ usage() {
 # ── Stage tracking + recovery trap ───────────────────────────────────────────
 STAGE="preflight"
 NEW_TAG=""
+RELEASE_FILES=(CHANGELOG.md VERSION)  # everything the release commit touches
 
 on_error() {
   echo ""
@@ -58,7 +60,13 @@ on_error() {
     bumped)
       echo "  Files were modified locally but not committed."
       echo "  To discard and start over:"
-      echo "    git checkout -- VERSION CHANGELOG.md CMakeLists.txt fpm.toml"
+      for f in "${RELEASE_FILES[@]}"; do
+        if git ls-files --error-unmatch "$f" &>/dev/null; then
+          echo "    git restore -- $f"
+        else
+          echo "    rm -f $f"
+        fi
+      done
       ;;
     committed)
       echo "  Commit was made but not tagged/pushed. To resume:"
@@ -83,6 +91,7 @@ command -v git &>/dev/null || die "git not found."
 # ── Must be run from repo root ────────────────────────────────────────────────
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+[[ -f cliff.toml ]] || die "cliff.toml not found at ${REPO_ROOT}: git-cliff would fall back to its default template"
 
 # ── Detect trunk branch ───────────────────────────────────────────────────────
 # 1. local symref refs/remotes/origin/HEAD (set automatically by `git clone`)
@@ -110,9 +119,9 @@ REPO_SLUG="$(echo "$REMOTE_URL" | sed -E 's|.*[:/]([^/]+/[^/]+)$|\1|' | sed 's|\
 BUMP_ARG=""
 for arg in "$@"; do
   case "$arg" in
-    --major | -M)                          BUMP_ARG=major ;;
-    --minor | -m)                          BUMP_ARG=minor ;;
-    --patch | -p)                          BUMP_ARG=patch ;;
+    --major | -M)                          BUMP_ARG="major" ;;
+    --minor | -m)                          BUMP_ARG="minor" ;;
+    --patch | -p)                          BUMP_ARG="patch" ;;
     v[0-9]*.[0-9]*.[0-9]* | [0-9]*.[0-9]*.[0-9]*)  BUMP_ARG="$arg" ;;
     *) usage ;;
   esac
@@ -148,7 +157,7 @@ CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 FETCH_ERR="$(git fetch --tags 2>&1)" || die "git fetch --tags failed:\n${FETCH_ERR}\n\nIf a local tag diverges from the remote, inspect with:\n  git ls-remote --tags origin <tagname>\n  git show <tagname>\nThen either delete the local tag (git tag -d <tagname>) or force-update (git fetch --tags --force) once you've confirmed the remote is authoritative."
 [[ -z "$(git tag -l "${NEW_TAG}")" ]] || die "tag ${NEW_TAG} already exists"
 
-BEHIND="$(git rev-list --count HEAD..origin/${TRUNK} 2>/dev/null || echo 0)"
+BEHIND="$(git rev-list --count HEAD..origin/"${TRUNK}" 2>/dev/null || echo 0)"
 [[ "$BEHIND" -eq 0 ]] \
   || die "${TRUNK} is ${BEHIND} commit(s) behind origin/${TRUNK} — run: git pull origin ${TRUNK}"
 
@@ -160,10 +169,10 @@ echo -e "  New version     : ${BOLD}${NEW_TAG}${RESET}"
 echo ""
 echo -e "${BOLD}This will:${RESET}"
 echo -e "  1. Regenerate ${CYAN}CHANGELOG.md${RESET} up to ${BOLD}${NEW_TAG}${RESET}"
-echo -e "  2. Update ${CYAN}VERSION${RESET}, ${CYAN}CMakeLists.txt${RESET} and ${CYAN}fpm.toml${RESET} to ${BOLD}${NEW_TAG}${RESET}"
+echo -e "  2. Update ${CYAN}VERSION${RESET} to ${BOLD}${NEW_TAG}${RESET}"
 echo -e "  3. Commit with message: ${CYAN}chore(release): ${NEW_TAG}${RESET}"
 echo -e "  4. Create annotated tag ${BOLD}${NEW_TAG}${RESET}"
-echo -e "  5. Push commit and tag to origin  →  triggers GitHub release workflow"
+echo -e "  5. Push ${BOLD}${TRUNK}${RESET} and the tag to origin"
 echo ""
 read -rp "Proceed? [y/N] " CONFIRM
 [[ "${CONFIRM,,}" == "y" ]] || { warn "Aborted."; exit 0; }
@@ -181,19 +190,10 @@ echo "$NEW_TAG" > VERSION
 grep -q "^${NEW_TAG}$" VERSION || die "VERSION update failed — file content mismatch"
 success "VERSION updated to ${NEW_TAG}"
 
-# ── Update the version of the CMake project and of the fpm manifest ─────────
-NEW_VER="${NEW_TAG#v}"
-info "Updating CMakeLists.txt and fpm.toml…"
-sed -i -E "s/^(project\(FLAP VERSION )[0-9]+\.[0-9]+\.[0-9]+/\1${NEW_VER}/" CMakeLists.txt
-grep -q "^project(FLAP VERSION ${NEW_VER} " CMakeLists.txt || die "CMakeLists.txt version update failed"
-sed -i -E "s/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/version = \"${NEW_VER}\"/" fpm.toml
-grep -q "^version = \"${NEW_VER}\"$" fpm.toml || die "fpm.toml version update failed"
-success "CMakeLists.txt and fpm.toml updated to ${NEW_VER}"
-
 # ── Commit ────────────────────────────────────────────────────────────────────
 STAGE="committed"
 info "Committing changelog and version…"
-git add CHANGELOG.md VERSION CMakeLists.txt fpm.toml
+git add "${RELEASE_FILES[@]}"
 git commit -m "chore(release): ${NEW_TAG}"
 success "Committed"
 
@@ -214,7 +214,6 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${GREEN}${BOLD} Released ${NEW_TAG}!${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo -e "  GitHub Actions release workflow triggered."
-echo -e "  Follow progress at:"
-echo -e "  ${CYAN}https://github.com/${REPO_SLUG}/actions${RESET}"
+echo -e "  Tag published at:"
+echo -e "  ${CYAN}https://github.com/${REPO_SLUG}/releases/tag/${NEW_TAG}${RESET}"
 echo ""
