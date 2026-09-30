@@ -2,7 +2,8 @@
 name       = appelbe
 summary    = Reproduction of Appelbe et al., Phys. Plasmas 26, 102704 (2019), Secs. IV-VI
 repository = https://github.com/szaghi/appelbe
-authors    = Stefano Zaghi
+authors    = "Federico Negro" "Luca Senni" "Stefano Zaghi"
+license    = GPL-3.0-only
 
 [dependencies]
 deps_dir = src/third_party
