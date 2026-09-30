@@ -1,0 +1,602 @@
+\documentclass[11pt,a4paper]{article}
+% Reproduction report: Appelbe et al., Phys. Plasmas 26, 102704 (2019), Secs. IV-VI.
+% Figures read ../results/*.dat (Fortran drivers) and data/paper_*.dat (digitized from the paper);
+% numbers and tables come from generated/*.tex (scripts/report_numbers.py). Build: fobis rule --ex report.
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{pgfplots}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\pgfplotsset{compat=1.18, table/comment chars={\#}}
+\usepgfplotslibrary{groupplots}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, citecolor=blue!50!black, urlcolor=blue!50!black}
+\captionsetup{font=small, labelfont=bf}
+
+\input{generated/numbers.tex}
+% expandable \input for table bodies (LaTeX's robust \input breaks a following \bottomrule inside tabular)
+\makeatletter\newcommand{\inputtable}[1]{\@@input #1 }\makeatother
+
+% plot styles: our kinetic solution (solid), our algebraic closure (dashed), Appelbe et al. digitized (markers)
+\pgfplotsset{
+   every axis/.append style={width=0.92\linewidth, height=6.2cm, grid=major, grid style={gray!25},
+                             legend style={font=\footnotesize, draw=gray!40, fill=white},
+                             tick label style={font=\footnotesize}, label style={font=\small}},
+   kin/.style={thick, no marks},
+   fit/.style={thick, dashed, no marks},
+   paper/.style={only marks, mark=o, mark size=1.6pt, each nth point=#1},
+   paper/.default=6,
+   discard if not/.style 2 args={x filter/.append code={%
+      \edef\tempa{\thisrowno{#1}}\edef\tempb{#2}%
+      \ifx\tempa\tempb\else\def\pgfmathresult{inf}\fi}},
+}
+\newcommand{\R}{../results}
+\newcommand{\D}{data}
+\newcommand{\ot}{\omega\tau}
+
+\title{Reproduction of Appelbe \emph{et al.} (2019), Sections IV--VI:\\
+       electron transport modified by collisions with fast ions}
+\author{Federico Negro \and Luca Senni \and Stefano Zaghi \and Claude (Anthropic), AI assistant}
+\date{\today\\[2pt]\small\texttt{appelbe} code, revision \texttt{\GitCommit}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reproduce Sections IV--VI of Appelbe \emph{et al.}, \emph{Modification of classical electron transport due to
+collisions between electrons and fast ions}, Phys.\ Plasmas \textbf{26}, 102704 (2019)~\cite{appelbe2019}, with a new,
+deliberately simple Fortran code. Two independent routes are implemented: the paper's \emph{simple-algebraic} closure
+(the rational fits of its Appendix~C) and a kinetic solver of the linearised electron $f_1$ equation (its Eq.~(13)). The
+kinetic equation is solved in two ways: with the paper's own procedure (Appendix~B, squared operator $GG+\Omega^2$) and
+with an equivalent complex formulation $(G+i\ot)f_1=g_7$. The kinetic solver reproduces the Epperlein--Haines transport
+coefficients to four digits and the analytic Lorentz limits exactly. Every result is compared \emph{directly} with the
+paper, using curves digitized from its figures and the numbers quoted in its text. Figures 4 and 6 are reproduced to
+better than $1\%$ and $0.2\%$ respectively; Fig.~5 to $2$--$4\%$ in the component along the fast-ion flux and, for the
+orthogonal component, to within $4$--$14\%$ at the minimum. The comparison also exposes points where the paper is not
+self-consistent: its Fig.~2 departs from its own Table~I, and several order-of-magnitude estimates of Sec.~V are too
+high, most notably the carbon-beam field-generation rate at low temperature.
+\end{abstract}
+
+\tableofcontents
+
+%=======================================================================================================================
+\section{Scope and deliverables}\label{sec:scope}
+The paper derives, from a Fokker--Planck model, the electron current and heat flow induced by collisions with an
+anisotropic fast-ion population, and inserts them into the classical transport relations. We reproduce:
+\begin{itemize}
+   \item \textbf{Sec.~IV}: heat flow induced by electron--$\alpha$ collisions, unmagnetised (Fig.~4, Eq.~(33)) and
+         magnetised (Fig.~5, Eqs.~(34)--(35));
+   \item \textbf{Sec.~V}: magnetic-field advection (Eq.~(40)) and generation (Eqs.~(41)--(43)), for the three scenarios
+         quoted in the text;
+   \item \textbf{Sec.~VI}: modification of the conventional coefficients $\mu_\parallel$, $K_\parallel$ by an isotropic
+         $\alpha$ population (Fig.~6);
+   \item as supporting material, Figs.~2 and 3 (Sec.~III C), on which Secs.~IV--V rest.
+\end{itemize}
+The code favours simplicity and maintainability over performance: dense matrices, no parallelism, a single
+dependency (PENF). A complete run of all drivers takes about a minute on a laptop, most of it in the solver-comparison
+sweep up to 1601 nodes.
+
+\paragraph{Conventions.} Equation, figure and table numbers without further qualification refer to the paper. Vectors
+orthogonal to $\mathbf b$ are written as complex numbers $(\perp,\wedge)=(\mathrm{Re},\mathrm{Im})$, where $\perp$ is the
+direction of the drive (the fast-ion flux) and $\wedge$ the direction $\mathbf b\times$drive, as in Eq.~(27).
+
+%=======================================================================================================================
+\section{Model summary}\label{sec:model}
+With a Maxwellian $f_0$, negligible $f_2$ and steady state ($\tau_{\alpha e}\gg\tau_{ei}$), the first angular moment of
+the electron kinetic equation reduces to the linear integro-differential equation (13),
+\begin{equation}
+   g_1 f_1'' + g_2 f_1' + g_3 f_1 + g_4\!\int_0^v\! v^5 f_1\,dv + g_5\!\int_0^v\! v^3 f_1\,dv
+   + g_6\!\int_v^\infty\! f_1\,dv + \ot\,\mathbf b\times\mathbf f_1 = \mathbf g_7 ,
+   \label{eq:f1}
+\end{equation}
+with $g_{1\text{--}6}$ given by Eqs.~(A8)--(A13) (electron--electron, electron--ion and, through the isotropic part $F_0$
+of the fast-ion distribution, electron--fast-ion collisions), and the source $\mathbf g_7$ of Eq.~(15), linear in
+$\nabla n_e$, $\nabla T_e$, $\mathbf E$ and the anisotropic part $\mathbf F_1$. Moments of $f_1$ give the induced current
+$\xi_{e\alpha}$ (Eq.~(16)) and heat flow $\zeta_{e\alpha}$ (Eq.~(17)); with the fast-ion current $j^0_\alpha$ (Eq.~(20)),
+$j^0_{e\alpha}=\xi_{e\alpha}+j^0_\alpha$ enters Ohm's law and the heat flow,
+\begin{align}
+   \mathbf E &= -\frac{\nabla P_e}{en_e} + \boldsymbol\sigma^{-1}\!\cdot(\mathbf j_T-\mathbf j^0_{e\alpha})
+                - \frac1e\boldsymbol\beta\cdot\nabla T_e , \tag{23}\\
+   \mathbf q_e &= -\boldsymbol\kappa\cdot\nabla T_e - \frac{T_e}{e}\left(\boldsymbol\beta+\tfrac52\mathbf I\right)\cdot
+                (\mathbf j_T-\mathbf j^0_{e\alpha}) + \boldsymbol\zeta_{e\alpha} . \tag{24}
+\end{align}
+For a monoenergetic population (Eqs.~(29)--(30)) the closure depends only on $v_\alpha/v_{Te}$ and $\ot$ and scales with
+the flux $n_\alpha\langle v_\alpha\rangle$. Appendix~C parameterises it for $\alpha$ particles in DT:
+\begin{equation}
+   (j^0_{e\alpha})_{\perp,\wedge} = Z_\alpha e\,n_\alpha\langle v_\alpha\rangle\, j^\nu_{\perp,\wedge}, \qquad
+   (\zeta_{e\alpha})_{\perp,\wedge} = n_\alpha\langle v_\alpha\rangle T_e\, \zeta^\nu_{\perp,\wedge},
+   \label{eq:closure}
+\end{equation}
+with rational fits in $x=\log_{10}\ot$ tabulated at six values of $v_\alpha/v_{Te}$ (Tables~I--IV). This is the
+\emph{simple-algebraic} closure.
+
+%=======================================================================================================================
+\section{Numerical methods}\label{sec:methods}
+\subsection{Kinetic solver}
+\paragraph{Normalisation.} Speeds are normalised by $v_{Te}$ ($u=v/v_{Te}$), each distribution by $n/v_{Te}^3$ of its
+species, times by $\tau_{ei}$ (Eq.~(14)). Every $\tau_{ei}Y_{ab}n_b$ becomes a pure number, e.g.\
+$\tau_{ei}Y_{ei}n_i/v_{Te}^3=3\sqrt\pi/4$, and the drives become dimensionless through $\lambda=v_{Te}\tau_{ei}$. The
+Maxwellian moments $I_0,I_2,J_{-1}$ are evaluated in closed form (error functions); the fast-ion moments of the
+$\delta$-function distributions are Heaviside steps.
+
+\paragraph{Discretisation (Appendix~B).} Uniform grid $u_j=(j-1)h$, $j=1\dots N$, $N$ odd; five-point centred
+differences (three-point next to the boundaries, Eqs.~(B16)--(B17)); Simpson quadrature for the three integral terms
+(Eqs.~(B18)--(B19)); boundary conditions $f_1(u_1)=f_1(u_2)$ and $f_1(u_N)=0$ (Eqs.~(B14)--(B15)). Defaults: $N=401$,
+$u_{\max}=7$. Two details of our implementation are not in the paper:
+\begin{itemize}
+   \item the $\delta(u-u_\alpha)$ of $F_0$, $F_1$ is a unit-area hat function, and $u_{\max}$ is stretched by less than
+         half a cell so that a node falls \emph{exactly} on $u_\alpha$; the Heaviside steps take the value $1/2$ there,
+         with a tolerance of $10^{-8}h$ against rounding. Without the alignment the fast-ion moments carry an erratic
+         $O(h)$ error that does not converge (stuck at $\approx3\times10^{-3}$); without the tolerance, rounding makes the
+         step randomly $0$ or $1$ at the aligned node, with jumps of up to $2\%$. With both, the moments converge at
+         second order (\cref{tab:convergence});
+   \item the three drives (electric field, temperature gradient, unit fast-ion flux) are solved together as three
+         right-hand sides; the fast-ion response is computed for $n_\alpha/n_e=1$, $\gamma_\alpha=1$ and used
+         normalised, which is exact because the problem is linear.
+\end{itemize}
+
+\paragraph{Solver 1: the paper's procedure.} Writing \cref{eq:f1} as $(G+\Omega\times)\mathbf f_1=\mathbf g_7$ with
+$\Omega=\ot\,\mathbf b$, the paper applies $G$ and $-\Omega\times$ and sums, obtaining Eq.~(B5). With $\mathbf b=\hat z$
+and the drive along $x$ ($g_{7y}=0$) its components are
+\begin{equation}
+   (GG+\Omega^2)f_{1x} = G g_{7x} + \Omega g_{7y} = G g_{7x}, \qquad
+   (GG+\Omega^2)f_{1y} = G g_{7y} - \Omega g_{7x} = -\Omega g_{7x}, \qquad
+   G f_{1z} = g_{7z}, \label{eq:paper-solver}
+\end{equation}
+where $GG$ is formed by matrix multiplication and the real systems are solved by LU decomposition, as in the paper. We
+use the parallel equation $Gf_1=g_7$ at $\ot=0$. \textbf{Note:} the printed Eqs.~(B6)--(B7) read ``$(G\pm\Omega)g_{7x,y}$'',
+a shorthand that drops the cross-component coupling; \cref{eq:paper-solver} is the form that follows from Eq.~(B5), and
+the one implemented.
+
+\paragraph{Solver 2: complex formulation.} With $f_1=f_{1x}+if_{1y}$ one has $\mathbf b\times\mathbf f_1\to if_1$, so the
+two orthogonal components obey the single complex system
+\begin{equation}
+   (G+i\ot)\,f_1 = g_7 . \label{eq:complex-solver}
+\end{equation}
+The real part is the $\perp$ response and the imaginary part the $\wedge$ response, which is exactly the tensor
+convention of Eq.~(27): tensor algebra becomes complex arithmetic (e.g.\ $\beta=\mu/\sigma-5/2$, and Eqs.~(34)--(35) are one
+complex product). \Cref{eq:complex-solver,eq:paper-solver} are algebraically identical, since
+$(G+i\ot)^{-1}=(G-i\ot)(GG+\ot^2)^{-1}$, but \cref{eq:paper-solver} squares the condition number of $G$. Solver~2 is the
+default; the two are compared in \cref{sec:solvers}.
+
+\subsection{Algebraic closure}
+Tables~I--IV are transcribed verbatim (checked against a 220-dpi render of the page). Two choices are left open by the
+paper: \emph{(i)} $x=\log_{10}\ot$ is clamped to the fitted range $[-3,3]$, which is continuous and maps $\ot=0$ to within
+$0.8\%$ of the tabulated $\ot=0$ column; \emph{(ii)} between the six nodes the fitted \emph{values} are interpolated
+linearly in $\log(v_\alpha/v_{Te})$. The conventional coefficients ($\beta_\perp$, $\beta_\wedge$, $\alpha_\parallel$),
+which the paper takes from Epperlein and Haines~\cite{eh1986} without tabulating them, are always computed with our
+kinetic solver, so both closures share the same background transport.
+
+\subsection{Comparison with the paper}
+Curves of Figs.~2, 4, 5 and 6 were digitized from the paper at 300\,dpi (\texttt{scripts/digitize\_paper.py}): each panel
+is calibrated from its axis frame, curves are extracted by colour, legends are masked and solid/dashed curves of equal
+colour are separated by vertical order. The resolution is about $3$\,px on a $\approx450$\,px frame, i.e.\ $\approx0.5\%$
+of the axis span; digitized points are shown as open circles in every figure of this report. Deviations are quantified by
+interpolating our curves at the digitized abscissae (\cref{tab:digitized}).
+
+%=======================================================================================================================
+\section{Verification of the kinetic solver}\label{sec:verification}
+\subsection{Conventional transport coefficients}
+Without fast ions the solver must reproduce the classical coefficients. \Cref{tab:validation} compares them with the
+exact Lorentz-gas values ($Z_i\to\infty$, where $f_1\propto u^4f_0$) and with Epperlein and Haines~\cite{eh1986} for
+$Z=1$. Agreement is to the four digits published. The Onsager relation $\tau=\mu-\tfrac32\sigma$ (Eq.~(22)), which holds only
+if the discrete collision operator is consistent, is satisfied to \OnsagerViolation{} over $\ot\in[0,10^3]$.
+
+\begin{table}[htb]\centering
+\caption{Conventional coefficients in Epperlein--Haines units ($\hat\alpha$ in $m_e/(n_ee^2\tau_{ei})$, $\hat\kappa$ in
+$n_eT_e\tau_{ei}/m_e$), $\ot=0$, $N=401$.}\label{tab:validation}
+\begin{tabular}{lcclc}\toprule
+Quantity & This work & Reference & Source & Rel.\ difference\\\midrule
+\inputtable{generated/tab_validation.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\subsection{Grid convergence}
+\Cref{tab:convergence} lists the relative differences with respect to $N=1601$. The conventional coefficients converge
+to $10^{-7}$--$10^{-9}$ already at $N=401$. The fast-ion moments, which involve the discontinuities at $u_\alpha$,
+converge at second order once a node is aligned with $u_\alpha$: from \ConvJfourOone{} ($N=401$) to \ConvJeightOone{}
+($N=801$) for $j^\nu$ at $\ot=1$. The default $N=401$ is therefore accurate to $\approx2\times10^{-4}$, two orders below
+the differences with the paper discussed below.
+
+\begin{table}[htb]\centering
+\caption{Relative difference from the $N=1601$ solution (complex solver), $\alpha$ particles in DT,
+$v_\alpha/v_{Te}=0.5$.}\label{tab:convergence}
+\begin{tabular}{rccccc}\toprule
+$N$ & $\ot$ & $\sigma$ & $K$ & $j^\nu$ & $\zeta^\nu$\\\midrule
+\inputtable{generated/tab_convergence.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\subsection{The paper's solver against the complex formulation}\label{sec:solvers}
+\Cref{tab:solvers,fig:solvers} compare the two solvers of \cref{sec:methods}. They agree to \SolverMaxDiffFourOone{} at
+$N=401$ and to \SolverMaxDiff{} in the worst case ($N=1601$, small $\ot$): the difference is pure rounding error and
+is physically irrelevant. It is, however, systematic: the residual of the paper's solution in the original first-order
+system is up to \ResidualRatioMax{} times larger, it grows with $N$ and decreases with $\ot$, as expected from the squared
+condition number of $GG+\Omega^2$ (the $\Omega^2$ shift regularises it at large $\ot$). At $\ot=0$ both reduce to
+$Gf_1=g_7$ and coincide. Because it works in real arithmetic, the paper's route is cheaper here
+(\TimePaperBig{}\,s against \TimeComplexBig{}\,s per response at $N=1601$), even though it forms $GG$.
+
+\begin{table}[htb]\centering
+\caption{Paper's solver (\cref{eq:paper-solver}) against the complex one (\cref{eq:complex-solver}): largest relative
+difference of $(\sigma,K,j^\nu,\zeta^\nu)$, relative residuals $\|(G+i\ot)f_1-g_7\|/\|g_7\|$ and CPU time per response
+(three right-hand sides).}\label{tab:solvers}
+\begin{tabular}{rcccccc}\toprule
+$N$ & $\ot$ & max rel.\ diff. & residual, complex & residual, paper & $t_\mathrm{complex}$ [s] & $t_\mathrm{paper}$ [s]\\\midrule
+\inputtable{generated/tab_solvers.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.8cm}, width=0.47\linewidth, height=5.6cm,
+                  xmode=log, ymode=log, xlabel={$\ot$}]
+\nextgroupplot[ylabel={max rel.\ difference}, legend pos=south west, title={\small paper vs complex}]
+\foreach \n/\c in {201/blue, 401/red, 801/green!50!black, 1601/black}{
+   \edef\temp{\noexpand\addplot[thick, mark=*, mark size=1.2pt, color=\c, discard if not={0}{\n}]
+      table[x index=1, y expr={max(\noexpand\thisrowno{2},\noexpand\thisrowno{3},\noexpand\thisrowno{4},\noexpand\thisrowno{5})}]
+      {\R/solvers.dat};}\temp
+   \addlegendentryexpanded{$N=\n$}}
+\nextgroupplot[ylabel={relative residual}, title={\small solid: paper, dashed: complex}]
+\foreach \n/\c in {201/blue, 401/red, 801/green!50!black, 1601/black}{
+   \edef\temp{\noexpand\addplot[thick, mark=*, mark size=1.2pt, color=\c, discard if not={0}{\n}]
+      table[x index=1, y index=7] {\R/solvers.dat};}\temp
+   \edef\temp{\noexpand\addplot[thick, dashed, color=\c, discard if not={0}{\n}]
+      table[x index=1, y index=6] {\R/solvers.dat};}\temp}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Left: largest relative difference between the two solvers. Right: residuals in the first-order system; the
+paper's squared-operator route loses accuracy at small $\ot$ and large $N$ ($\ot=0$, where both solve $Gf_1=g_7$, is
+off the logarithmic axis).}\label{fig:solvers}
+\end{figure}
+
+%=======================================================================================================================
+\section{The fast-ion response (Sec.~III C, supporting Secs.~IV--V)}\label{sec:response}
+\subsection{Unmagnetised current ratio (Fig.~2)}
+\Cref{fig:fig2} compares $j^0_{e\alpha}/j^0_\alpha$ for protons, $\alpha$ particles and C$^{6+}$ ions in DT with the
+paper's Fig.~2. At $v_\alpha/v_{Te}=0.1$ the ratio is within $2.5\%$ of its low-velocity limit $1-Z_\alpha/Z_i$ (Eq.~(32)),
+and the curves agree closely with the paper up to $v_\alpha/v_{Te}\approx0.35$. Beyond that, ours are more negative, by
+up to $\approx8\%$ of the curve scale for $\alpha$ and carbon (\cref{tab:digitized}). \Cref{tab:fig2} shows that this is
+an inconsistency \emph{within the paper}: at $v_\alpha/v_{Te}=0.5$, its Fig.~2 gives $-1.34$ while its own Table~I
+($\ot=0$ column, the same quantity) gives $-1.39$; our kinetic value, $-1.385$, agrees with Table~I. Our $\alpha$ curve has
+a shallow minimum near $v_\alpha/v_{Te}\approx0.8$, converged to $10^{-4}$ in $N$ and $u_{\max}$; the paper's curve rises
+monotonically there. The paper's Fig.~2 was probably computed with a different Coulomb-logarithm set-up (Appendix~C
+mentions NRL values); our solver uses $\ln\Lambda_{ee}=\ln\Lambda_{ei}=\ln\Lambda_{e\alpha}$.
+
+Our curves extend to $v_\alpha/v_{Te}=3$: this range is needed in Sec.~V B, where a 200\,MeV carbon ion at
+$T_e=1$--$2$\,keV has $v_\alpha/v_{Te}=2$--$3$. There the ratio collapses towards zero (and turns positive for protons and
+$\alpha$ particles): a fast ion much faster than the electrons drags them only weakly.
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{axis}[xmode=log, xmin=0.1, xmax=3, ymin=-7, ymax=1, xlabel={$v_\alpha/v_{Te}$},
+             ylabel={$j^0_{e\alpha}/j^0_\alpha$}, width=0.72\linewidth, legend pos=outer north east]
+\addplot[kin, cyan!70!black] table[x index=0, y index=1] {\R/fig2.dat}; \addlegendentry{proton}
+\addplot[paper=8, cyan!70!black] table[x index=0, y index=1] {\D/paper_fig2_proton.dat}; \addlegendentry{paper}
+\addplot[kin, magenta] table[x index=0, y index=2] {\R/fig2.dat}; \addlegendentry{$\alpha$}
+\addplot[paper=8, magenta] table[x index=0, y index=1] {\D/paper_fig2_alpha.dat}; \addlegendentry{paper}
+\addplot[kin, black] table[x index=0, y index=3] {\R/fig2.dat}; \addlegendentry{C$^{6+}$}
+\addplot[paper=8, black] table[x index=0, y index=1] {\D/paper_fig2_carbon.dat}; \addlegendentry{paper}
+\addplot[only marks, mark=square*, mark size=2pt, red] coordinates {(1,-1.42) (0.5,-1.39) (0.33,-1.21) (0.25,-1.13) (0.1,-1.02)};
+\addlegendentry{paper, Table I}
+\end{axis}
+\end{tikzpicture}
+\caption{Unmagnetised current ratio, DT. Lines: this work (kinetic). Circles: digitized paper Fig.~2 (range
+$0.1$--$1$). Squares: the paper's Table~I, $\ot=0$ column, for $\alpha$ particles.}\label{fig:fig2}
+\end{figure}
+
+\begin{table}[htb]\centering
+\caption{Internal consistency of the paper for $\alpha$ particles, $\ot=0$: Table~I against the digitized Fig.~2,
+and this work.}\label{tab:fig2}
+\begin{tabular}{cccc}\toprule
+$v_\alpha/v_{Te}$ & paper, Table I & paper, Fig.~2 (digitized) & this work\\\midrule
+\inputtable{generated/tab_fig2_consistency.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\subsection{Magnetised closure: kinetic solution against the algebraic fits (Fig.~3)}
+Appendix~C \emph{is} the paper's Fig.~3 in parameterised form, so the comparison of our kinetic solution with the fits
+(\cref{fig:fig3,tab:fig3}) is the direct comparison with Fig.~3. The agreement is within $0.017$ for $j^\nu$ and $0.11$
+for $\zeta^\nu$ (about $1\%$ of their ranges) over $-3\le\log_{10}\ot\le3$ and all tabulated $v_\alpha/v_{Te}$ that the
+default grid resolves. The sign of the $\wedge$ components ($j^\nu_\wedge<0$, $\zeta^\nu_\wedge>0$) is reproduced; since our
+solver is built on the convention of Eq.~(27), this pins the handedness that the paper does not state explicitly.
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2, vertical sep=1.4cm}, height=5.4cm, xmin=-3, xmax=3,
+                  xlabel={$\log_{10}\ot$}]
+\nextgroupplot[ylabel={$j^0_{e\alpha}/j^0_\alpha$}, legend pos=north west, legend columns=3]
+\foreach \v/\c in {1.000/blue, 0.330/red, 0.100/black}{
+   \edef\temp{\noexpand\addplot[kin, \c] table[x index=0, y index=1] {\R/fig3_v\v.dat};}\temp
+   \addlegendentryexpanded{$v_\alpha/v_{Te}=\v$}}
+\foreach \v/\c in {1.000/blue, 0.330/red, 0.100/black}{
+   \edef\temp{\noexpand\addplot[kin, dashed, \c, forget plot] table[x index=0, y index=2] {\R/fig3_v\v.dat};}\temp
+   \edef\temp{\noexpand\addplot[only marks, mark=o, mark size=1.4pt, each nth point=4, \c, forget plot]
+      table[x index=0, y index=5] {\R/fig3_v\v.dat};}\temp
+   \edef\temp{\noexpand\addplot[only marks, mark=triangle, mark size=1.6pt, each nth point=4, \c, forget plot]
+      table[x index=0, y index=6] {\R/fig3_v\v.dat};}\temp}
+\nextgroupplot[ylabel={$\zeta_{e\alpha}/(T_en_\alpha\langle v_\alpha\rangle)$}]
+\foreach \v/\c in {1.000/blue, 0.330/red, 0.100/black}{
+   \edef\temp{\noexpand\addplot[kin, \c] table[x index=0, y index=3] {\R/fig3_v\v.dat};}\temp
+   \edef\temp{\noexpand\addplot[kin, dashed, \c] table[x index=0, y index=4] {\R/fig3_v\v.dat};}\temp
+   \edef\temp{\noexpand\addplot[only marks, mark=o, mark size=1.4pt, each nth point=4, \c]
+      table[x index=0, y index=7] {\R/fig3_v\v.dat};}\temp
+   \edef\temp{\noexpand\addplot[only marks, mark=triangle, mark size=1.6pt, each nth point=4, \c]
+      table[x index=0, y index=8] {\R/fig3_v\v.dat};}\temp}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Collisionally induced current (top) and heat flow (bottom) for $\alpha$ particles in DT. Lines: this work
+(kinetic), solid $\perp$, dashed $\wedge$. Markers: the paper's Appendix~C fits, circles $\perp$, triangles $\wedge$.}
+\label{fig:fig3}
+\end{figure}
+
+\begin{table}[htb]\centering
+\caption{Largest absolute difference between our kinetic solution and the paper's Appendix~C fits over
+$-3\le\log_{10}\ot\le3$ ($v_\alpha/v_{Te}=0.025$ is not resolved by the default grid).}\label{tab:fig3}
+\begin{tabular}{ccccc}\toprule
+$v_\alpha/v_{Te}$ & $j^\nu_\perp$ & $j^\nu_\wedge$ & $\zeta^\nu_\perp$ & $\zeta^\nu_\wedge$\\\midrule
+\inputtable{generated/tab_fig3.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+%=======================================================================================================================
+\section{Section IV: heat flow}\label{sec:iv}
+\subsection{Unmagnetised plasma (Fig.~4)}
+With $\mathbf B=0$ and $\mathbf j_T=0$, Eq.~(33) gives $q_e=(T_e/e)(\beta_\parallel+5/2)j^0_{e\alpha}+\zeta_{e\alpha}$.
+\Cref{fig:fig4} shows the two contributions and their sum for 3.45\,MeV $\alpha$ particles, normalised by the $\alpha$
+flux. Our kinetic curves match the paper to $0.8\%$ (components) and $3\%$ (sum, which is a small difference of large
+terms, digitized from a dotted line); the algebraic closure is within $1$--$5\%$ (\cref{tab:digitized}). The physical
+conclusion of the paper is confirmed: the heat flow driven by $j^0_{e\alpha}$ opposes the $\alpha$ flux, the direct
+contribution $\zeta_{e\alpha}$ is parallel to it and larger, so the net electron heat flow follows the $\alpha$ flux.
+$\beta_\parallel=\ZoneBeta$ is used throughout.
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{axis}[xmin=1, xmax=15, xlabel={$T_e$ [keV]}, ylabel={$q_e/(n_\alpha\langle v_\alpha\rangle)$ [W\,s]},
+             legend pos=north west, legend columns=2]
+\addplot[kin, blue] table[x index=0, y index=1] {\R/fig4.dat}; \addlegendentry{$j^0_{e\alpha}$ heat flow}
+\addplot[paper, blue] table[x index=0, y index=1] {\D/paper_fig4_q_j.dat}; \addlegendentry{paper}
+\addplot[kin, green!50!black] table[x index=0, y index=2] {\R/fig4.dat}; \addlegendentry{$\zeta_{e\alpha}$ heat flow}
+\addplot[paper, green!50!black] table[x index=0, y index=1] {\D/paper_fig4_q_zeta.dat}; \addlegendentry{paper}
+\addplot[kin, red] table[x index=0, y index=3] {\R/fig4.dat}; \addlegendentry{sum}
+\addplot[paper=3, red] table[x index=0, y index=1] {\D/paper_fig4_q_sum.dat}; \addlegendentry{paper}
+\addplot[fit, blue] table[x index=0, y index=4] {\R/fig4.dat};
+\addplot[fit, green!50!black] table[x index=0, y index=5] {\R/fig4.dat};
+\addplot[fit, red] table[x index=0, y index=6] {\R/fig4.dat};
+\end{axis}
+\end{tikzpicture}
+\caption{Heat flow induced by electron--$\alpha$ collisions, unmagnetised DT, $E_\alpha=3.45$\,MeV. Solid: this work,
+kinetic closure. Dashed: this work, algebraic closure (Appendix~C). Circles: digitized paper Fig.~4.}\label{fig:fig4}
+\end{figure}
+
+\subsection{Magnetised plasma (Fig.~5)}
+For a uniform $\mathbf B$ orthogonal to the $\alpha$ flux, Eqs.~(34)--(35) combine $j^0_{e\alpha}$, $\zeta_{e\alpha}$ and
+$\beta_\perp$, $\beta_\wedge$; in our notation $q_e=(T_e/e)[Z_\alpha(\beta+5/2)j^\nu+\zeta^\nu]\,n_\alpha\langle
+v_\alpha\rangle$ with complex $\beta$, $j^\nu$, $\zeta^\nu$. \Cref{fig:fig5} shows the result at $T_e=1$ and $15$\,keV.
+
+The component \textbf{along the flux}, $q_{e\perp}$, is reproduced to $2\%$ at 15\,keV and $4\%$ at 1\,keV. It is worth
+noting which closure the paper appears to have used: at 1\,keV, where $v_\alpha/v_{Te}=0.69$ falls between the table nodes
+1 and 0.5, the paper's low-$\ot$ plateau (\FivePlateauPaperOne\,W\,s\,keV$^{-1}$) is $2\%$ from our \emph{kinetic} value
+(\FivePlateauKinOne) and $5\%$ from the interpolated algebraic closure (\FivePlateauFitOne). This is consistent with a
+kinetic computation of the paper's Fig.~5 rather than with node-wise use of its own fits. At 15\,keV all three agree
+(\FivePlateauPaperFifteen, \FivePlateauKinFifteen, \FivePlateauFitFifteen). The main physical result is confirmed:
+$q_{e\perp}$ \emph{increases} with magnetisation, because $j^0_\alpha$ is not magnetised on these scales, and saturates at
+$q_{e\perp}/(n_\alpha\langle v_\alpha\rangle T_e)\to\tfrac52 Z_\alpha=5$.
+
+The \textbf{orthogonal component} $q_{e\wedge}$ has the paper's shape, with a minimum near $\ot\approx1$. At 15\,keV
+the minimum is \FiveMinPaperFifteen{} (paper) against \FiveMinKinFifteen{} (kinetic), $4\%$ apart, at the same $\ot$
+within $0.04$ decades. At 1\,keV the paper's minimum (\FiveMinPaperOne) lies between our kinetic (\FiveMinKinOne) and
+algebraic (\FiveMinFitOne) values. The large maximum deviations in \cref{tab:digitized} for $q_{e\wedge}$ ($18$--$29\%$
+of the peak) come from a shift of about $0.1$ decade along $\ot$ on the steep flanks of the curve, not from a difference
+in shape. A plausible cause is the source of $\beta_\perp(\ot)$, $\beta_\wedge(\ot)$: the paper cites Epperlein and
+Haines, whose published coefficients are rational fits with errors of a few percent, while we compute them exactly
+with the same kinetic operator. We could not verify this without the coefficients the paper actually used.
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2, vertical sep=1.4cm}, height=5.6cm, xmin=-3, xmax=3,
+                  xlabel={$\log_{10}\ot$}]
+\nextgroupplot[ylabel={$q_{e\perp}$ [W\,s\,keV$^{-1}$]}, legend pos=south east, legend columns=2, ymin=5e-16, ymax=9e-16]
+\addplot[kin, blue] table[x index=0, y index=1] {\R/fig5_Te01keV.dat}; \addlegendentry{1 keV}
+\addplot[paper=5, blue] table[x index=0, y index=1] {\D/paper_fig5_perp_Te1keV.dat}; \addlegendentry{paper}
+\addplot[kin, green!50!black] table[x index=0, y index=1] {\R/fig5_Te15keV.dat}; \addlegendentry{15 keV}
+\addplot[paper=5, green!50!black] table[x index=0, y index=1] {\D/paper_fig5_perp_Te15keV.dat}; \addlegendentry{paper}
+\addplot[fit, blue] table[x index=0, y index=3] {\R/fig5_Te01keV.dat};
+\addplot[fit, green!50!black] table[x index=0, y index=3] {\R/fig5_Te15keV.dat};
+\nextgroupplot[ylabel={$q_{e\wedge}$ [W\,s\,keV$^{-1}$]}, ymin=-1e-16, ymax=2e-17]
+\addplot[kin, blue] table[x index=0, y index=2] {\R/fig5_Te01keV.dat};
+\addplot[paper=5, blue] table[x index=0, y index=1] {\D/paper_fig5_wedge_Te1keV.dat};
+\addplot[kin, green!50!black] table[x index=0, y index=2] {\R/fig5_Te15keV.dat};
+\addplot[paper=5, green!50!black] table[x index=0, y index=1] {\D/paper_fig5_wedge_Te15keV.dat};
+\addplot[fit, blue] table[x index=0, y index=4] {\R/fig5_Te01keV.dat};
+\addplot[fit, green!50!black] table[x index=0, y index=4] {\R/fig5_Te15keV.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Heat flow induced by 3.45\,MeV $\alpha$ particles moving orthogonally to $\mathbf B$, normalised by
+$n_\alpha\langle v_\alpha\rangle T_e[\mathrm{keV}]$. Top: component along the flux; bottom: along
+$\mathbf b\times$flux. Solid: kinetic; dashed: algebraic closure; circles: digitized paper Fig.~5.}\label{fig:fig5}
+\end{figure}
+
+%=======================================================================================================================
+\section{Section V: magnetic-field transport}\label{sec:v}
+\subsection{Advection (Eq.~(40))}
+The term $\nabla\times(\mathbf j^0_{e\alpha}\times\mathbf B/en_e)$ advects the field with velocity
+$\mathbf u=\mathbf j^0_{e\alpha}/(en_e)=Z_\alpha(n_\alpha/n_e)\langle v_\alpha\rangle j^\nu$. For the paper's estimate
+($n_\alpha/n_e=10^{-3}$, $\langle v_\alpha\rangle=10^7$\,m\,s$^{-1}$), \cref{tab:advection} gives $|u|$ between
+$2\times10^4$ and $3\times10^4$\,m\,s$^{-1}$. That is the paper's own intermediate estimate,
+$2(n_\alpha/n_e)\langle v_\alpha\rangle=2\times10^4$\,m\,s$^{-1}$; its final statement, ``up to $10^4$\,m\,s$^{-1}$'', rounds
+down. The reversal of $u_\perp$ between low and high $\ot$, stated in the paper, is reproduced: at $\ot\to0$ the electron
+current dominates ($u_\perp<0$); at $\ot\to\infty$ only $j^0_\alpha$ survives ($u_\perp\to+2\times10^4$).
+
+\begin{table}[htb]\centering
+\caption{Advection velocity [m\,s$^{-1}$] for $n_\alpha/n_e=10^{-3}$, $\langle v_\alpha\rangle=10^7$\,m\,s$^{-1}$.}
+\label{tab:advection}
+\begin{tabular}{cccccc}\toprule
+$T_e$ [keV] & $\log_{10}\ot$ & $u_\perp$, kinetic & $u_\wedge$, kinetic & $u_\perp$, algebraic & $u_\wedge$, algebraic\\\midrule
+\inputtable{generated/tab_advection.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\subsection{Generation (Eqs.~(41)--(43))}
+In an unmagnetised plasma the collisionally induced current generates field through the resistive term
+$\nabla\times[\alpha_\parallel\mathbf j^0_{e\alpha}/(en_e)^2]$. We evaluate Eq.~(43) with $\alpha_\parallel$ from our solver
+($\hat\alpha_\parallel=\ZoneAlpha$) and the NRL electron--ion Coulomb logarithm. Our prefactor $\alpha_\parallel/(en_e)^2$
+reproduces the paper's $1.65\times10^{-9}\ln\Lambda_{ei}T_{keV}^{-3/2}$ to four digits.
+
+\paragraph{Ion fast ignition (C$^{6+}$ beam).} Parameters from the paper: 200\,MeV carbon ions, $j^0_\alpha=3.4\times10^{17}$
+A\,m$^{-2}$, beam radius $10\,\mu$m ($|\partial j/\partial r|\approx|j^0_{e\alpha}|/R$), $400$\,g\,cm$^{-3}$ DT, uniform
+$T_e=1$--$10$\,keV. The paper reads $j^0_{e\alpha}\approx-5j^0_\alpha$ from its Fig.~2 and applies it to the whole
+temperature range, obtaining $10^{13}$--$10^{15}$\,T\,s$^{-1}$. \Cref{tab:carbon} shows why this overestimates the low-$T$
+end: at 1--2\,keV the carbon ions have $v_\alpha/v_{Te}=2$--$3$, beyond the range of Fig.~2, and the ratio collapses
+($-0.05$ at 1\,keV). The Coulomb logarithm is also small in this dense plasma ($\ln\Lambda_{ei}\approx1$ at 1\,keV). Our
+rates are $3\times10^{12}$--$6\times10^{13}$\,T\,s$^{-1}$, peaking around 5\,keV.
+
+\begin{table}[htb]\centering
+\caption{Ion fast ignition: carbon-beam field generation rate.}\label{tab:carbon}
+\begin{tabular}{ccccc}\toprule
+$T_e$ [keV] & $v_\alpha/v_{Te}$ & $j^0_{e\alpha}/j^0_\alpha$ & $\ln\Lambda_{ei}$ & $|\partial B_\theta/\partial t|$ [T\,s$^{-1}$]\\\midrule
+\inputtable{generated/tab_carbon.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\paragraph{$\alpha$ flux across a temperature gradient.} Paper parameters: $\alpha$ flux $10^{34}$\,m$^{-2}$\,s$^{-1}$,
+uniform current, $\partial T_e/\partial r=1$\,keV\,$\mu$m$^{-1}$, hotspot density $10^5$\,kg\,m$^{-3}$. The paper quotes
+$j^0_{e\alpha}\approx6\times10^{15}$\,A\,m$^{-2}$ and $6\times10^{13}T_{keV}^{-5/2}$\,T\,s$^{-1}$. Since
+$Z_\alpha e\,n_\alpha\langle v_\alpha\rangle=3.2\times10^{15}$\,A\,m$^{-2}$ and $|j^\nu_\perp|\le1.5$, the current cannot exceed
+$\approx4.8\times10^{15}$\,A\,m$^{-2}$ (\cref{tab:gradient}); correspondingly our $T_{keV}^{5/2}\partial B/\partial t$ is
+$2$--$3.5\times10^{13}$\,T\,s$^{-1}$, a factor 2--3 below the paper's. The paper's value would require
+$\ln\Lambda_{ei}\approx4$ at all temperatures; the NRL value grows from 1.7 to 4.0 between 1 and 10\,keV.
+
+\begin{table}[htb]\centering
+\caption{$\alpha$ flux of $10^{34}$\,m$^{-2}$\,s$^{-1}$ across a 1\,keV\,$\mu$m$^{-1}$ temperature gradient.}\label{tab:gradient}
+\begin{tabular}{cccccc}\toprule
+$T_e$ [keV] & $\ln\Lambda_{ei}$ & $j^0_{e\alpha}$, kinetic & $j^0_{e\alpha}$, algebraic & $\partial B_\theta/\partial t$ [T\,s$^{-1}$]
+& $T_{keV}^{5/2}\,\partial B_\theta/\partial t$\\\midrule
+\inputtable{generated/tab_gradient.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+%=======================================================================================================================
+\section{Section VI: coefficients modified by the isotropic component}\label{sec:vi}
+The isotropic part $F_0$ of the fast-ion distribution does not drive transport but enters the operator (through
+$g_{1\text{--}3}$) and so modifies the conventional coefficients. \Cref{fig:fig6} shows $\mu_\parallel$ and $K_\parallel$
+for an isotropic population of 3.45\,MeV $\alpha$ particles, normalised by their values without $\alpha$ particles, with
+$n_i=n_e/Z_i$ held fixed (the paper's convention). This figure needs the kinetic solver: the algebraic closure does not
+contain the effect. The reproduction is essentially exact: all six curves match the digitized ones within $0.2\%$
+(\cref{tab:digitized}), which is the digitization resolution. The paper's conclusions are confirmed: the deviation is
+below $1\%$ for $n_\alpha/n_e\lesssim10^{-3}$ ($0.25\%$ in the worst case), reaches $\approx2.5\%$ at $10^{-2}$ and
+$\approx20\%$ at $10^{-1}$, and is larger at higher temperature (smaller $v_\alpha/v_{Te}$).
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{axis}[xmode=log, xmin=1e-4, xmax=1e-1, ymin=0.8, ymax=1.0, xlabel={$n_\alpha/n_e$},
+             ylabel={normalised coefficient}, legend pos=south west]
+\addplot[kin, blue] table[x index=0, y index=1] {\R/fig6.dat}; \addlegendentry{$T_e=1$ keV}
+\addplot[kin, red] table[x index=0, y index=3] {\R/fig6.dat}; \addlegendentry{$T_e=5$ keV}
+\addplot[kin, black] table[x index=0, y index=5] {\R/fig6.dat}; \addlegendentry{$T_e=10$ keV}
+\addplot[kin, dashed, blue] table[x index=0, y index=2] {\R/fig6.dat};
+\addplot[kin, dashed, red] table[x index=0, y index=4] {\R/fig6.dat};
+\addplot[kin, dashed, black] table[x index=0, y index=6] {\R/fig6.dat};
+\foreach \c/\t in {blue/1keV, red/5keV, black/10keV}{
+   \edef\temp{\noexpand\addplot[paper=4, \c, forget plot] table[x index=0, y index=1] {\D/paper_fig6_K_\t.dat};}\temp
+   \edef\temp{\noexpand\addplot[only marks, mark=triangle, mark size=1.6pt, each nth point=4, \c, forget plot]
+      table[x index=0, y index=1] {\D/paper_fig6_mu_\t.dat};}\temp}
+\end{axis}
+\end{tikzpicture}
+\caption{Thermal diffusion $K_\parallel$ (solid) and energy conductivity $\mu_\parallel$ (dashed) with an isotropic
+3.45\,MeV $\alpha$ population, normalised by their values without $\alpha$ particles. Markers: digitized paper Fig.~6
+(circles $K_\parallel$, triangles $\mu_\parallel$), available where solid and dashed paper curves are separable.}
+\label{fig:fig6}
+\end{figure}
+
+%=======================================================================================================================
+\section{Direct comparison summary}\label{sec:summary}
+\Cref{tab:digitized} quantifies the agreement with every digitized curve and \cref{tab:quotes} with every number quoted in
+the text of Secs.~III--VI.
+
+\begin{table}[htb]\centering
+\caption{Deviation from the digitized paper curves: max and RMS of $|$this work $-$ paper$|$ over the digitized points,
+in percent of the largest $|$paper$|$ value of each curve. Digitization resolution $\approx0.5\%$ of the axis span.}
+\label{tab:digitized}
+\begin{tabular}{llcccc}\toprule
+& & \multicolumn{2}{c}{kinetic closure} & \multicolumn{2}{c}{algebraic closure}\\\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Figure & Curve & max [\%] & RMS [\%] & max [\%] & RMS [\%]\\\midrule
+\inputtable{generated/tab_digitized.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\begin{table}[htb]\centering\small
+\caption{Numbers quoted in the paper against this work.}\label{tab:quotes}
+\begin{tabular}{p{6.0cm}lp{3.1cm}p{4.2cm}}\toprule
+Quantity & Sec./Eq. & Paper & This work\\\midrule
+\inputtable{generated/tab_quotes.tex}
+\bottomrule\end{tabular}
+\end{table}
+
+\subsection*{Errata and inconsistencies found in the paper}
+\begin{enumerate}
+   \item Eqs.~(B6)--(B7) print ``$(G\pm\Omega)g_{7x,y}$''; the correct right-hand sides, following from Eq.~(B5), are
+         $Gg_{7x}+\Omega g_{7y}$ and $Gg_{7y}-\Omega g_{7x}$ (\cref{eq:paper-solver}).
+   \item Fig.~2 differs from Table~I at $v_\alpha/v_{Te}=0.5$ by $3.8\%$ (\cref{tab:fig2}); our kinetic solution sides with
+         Table~I.
+   \item Sec.~V B gives current densities in A\,m$^{-3}$ ($j^0_\alpha=3.4\times10^{17}$, $j^0_{e\alpha}\approx6\times10^{15}$);
+         the unit is A\,m$^{-2}$.
+   \item Sec.~V B: $j^0_{e\alpha}\approx6\times10^{15}$\,A\,m$^{-2}$ exceeds the bound $Z_\alpha en_\alpha\langle
+         v_\alpha\rangle\max|j^\nu|\approx4.8\times10^{15}$; the derived rate is high by a factor 2--3.
+   \item Sec.~V B: the carbon-beam estimate uses $j^0_{e\alpha}\approx-5j^0_\alpha$ outside the validity range of Fig.~2; at
+         1--2\,keV the ratio is $-0.05$ to $-1.7$, and the rate is more than an order of magnitude below the quoted upper
+         value of $10^{15}$\,T\,s$^{-1}$.
+   \item Sec.~V A: ``advection velocities of up to $10^4$\,m\,s$^{-1}$'' is half the paper's own estimate
+         $2(n_\alpha/n_e)\langle v_\alpha\rangle$; the computed maximum is $3\times10^4$\,m\,s$^{-1}$.
+\end{enumerate}
+
+%=======================================================================================================================
+\section{Conclusions}\label{sec:conclusions}
+\begin{itemize}
+   \item Sections IV--VI of Appelbe \emph{et al.} are reproduced. Figure 6 is reproduced to the digitization resolution,
+         Fig.~4 to better than $1\%$ in its components, Fig.~5 to $2$--$4\%$ in the component along the flux, with a
+         $\approx0.1$-decade flank shift in the orthogonal one. The physical conclusions of the paper (heat flow along the
+         $\alpha$ flux, not suppressed by magnetisation; field advection with direction reversal; field generation with
+         $\mathbf j_T=0$; negligible $F_0$ effect for $n_\alpha/n_e\lesssim10^{-3}$) all hold.
+   \item The paper's Appendix~B procedure and our complex formulation are equivalent to rounding; the complex form is
+         simpler to write and better conditioned, the paper's is cheaper in real arithmetic. For the $O(10^2$--$10^3)$
+         unknowns needed here, both are adequate.
+   \item The simple-algebraic closure is accurate to a few percent where $v_\alpha/v_{Te}$ is close to a table node. Its
+         weak point is the wide gap between the nodes 1 and 0.5 ($T_e\approx0.5$--$1.9$\,keV for 3.45\,MeV $\alpha$):
+         at 1\,keV, relative to the kinetic solution, the interpolated closure is $7\%$ high on the $q_{e\perp}$ plateau
+         and $25\%$ shallow at the $q_{e\wedge}$ minimum. For coupling to an MHD code (FLUME), either a denser table
+         regenerated with our kinetic solver or a two-dimensional fit in $(v_\alpha/v_{Te},\ot)$ should replace
+         node-wise interpolation.
+   \item The order-of-magnitude estimates of Sec.~V should not be used as benchmarks. Species other than $\alpha$ in DT
+         require the kinetic solver.
+\end{itemize}
+
+\appendix
+\section{Reproducing this report}
+\begin{verbatim}
+fobis fetch && fobis build --mode gnu  # PENF, all programs into exe/
+fobis rule --ex tests                  # verification suite
+fobis rule --ex figures                # drivers -> results/*.dat
+fobis rule --ex report                 # tables + report/appelbe_report.pdf
+python3 scripts/digitize_paper.py      # refresh report/data/ (needs the paper)
+\end{verbatim}
+Default kinetic grid: $N=401$ nodes on $[0,\approx7]$ (node-aligned with $u_\alpha$). Coulomb logarithms: equal for all
+species pairs in the kinetic solver; NRL electron--ion formula for the dimensional estimates of Sec.~V.
+
+\begin{thebibliography}{9}
+\bibitem{appelbe2019} B.~Appelbe, M.~Sherlock, O.~El-Amiri, C.~Walsh, J.~Chittenden, \emph{Modification of classical
+   electron transport due to collisions between electrons and fast ions}, Phys.\ Plasmas \textbf{26}, 102704 (2019),
+   doi:10.1063/1.5114794.
+\bibitem{eh1986} E.~M.~Epperlein, M.~G.~Haines, \emph{Plasma transport coefficients in a magnetic field by direct
+   numerical solution of the Fokker--Planck equation}, Phys.\ Fluids \textbf{29}, 1029 (1986).
+\bibitem{shkarofsky} I.~P.~Shkarofsky, T.~W.~Johnston, M.~P.~Bachynski, \emph{The Particle Kinetics of Plasmas}
+   (Addison-Wesley, 1966).
+\bibitem{braginskii} S.~I.~Braginskii, \emph{Transport processes in a plasma}, Rev.\ Plasma Phys.\ \textbf{1}, 205 (1965).
+\bibitem{nrl} J.~D.~Huba, \emph{NRL Plasma Formulary} (Naval Research Laboratory, 2013).
+\end{thebibliography}
+\end{document}

@@ -1,0 +1,49 @@
+[project]
+name       = appelbe
+summary    = Reproduction of Appelbe et al., Phys. Plasmas 26, 102704 (2019), Secs. IV-VI
+repository = https://github.com/szaghi/appelbe
+authors    = Stefano Zaghi
+
+[dependencies]
+deps_dir = src/third_party
+PENF     = https://github.com/szaghi/PENF :: tag=v1.3.17
+
+[modes]
+modes = gnu gnu-debug
+
+[common-variables]
+$CFLAGS_GNU = -c -frealloc-lhs -ffree-line-length-132
+$OPT_GNU    = -O2
+$DEBUG_GNU  = -O0 -g3 -Wall -Wextra -Wimplicit-interface -fcheck=all -fbacktrace -finit-real=snan -ffpe-trap=invalid,zero,overflow
+
+# no target: every program under src/ (drivers in src/app, tests in src/tests) is built into exe/
+[template-gnu]
+compiler        = gnu
+src             = ./src/
+exclude_dirs    = ./src/third_party/PENF/src/tests
+mod_dir         = ./mod/
+obj_dir         = ./obj/
+build_dir       = ./exe/
+cflags_heritage = True
+colors          = True
+jobs            = 4
+
+[gnu]
+template = template-gnu
+cflags   = $CFLAGS_GNU $OPT_GNU
+
+[gnu-debug]
+template = template-gnu
+cflags   = $CFLAGS_GNU $DEBUG_GNU
+
+[rule-tests]
+help = Run every test program (build first)
+rule = bash scripts/run_tests.sh
+
+[rule-figures]
+help = Run every reproduction driver and plot the results with gnuplot (build first)
+rule = bash scripts/make_figures.sh
+
+[rule-report]
+help = Generate report numbers/tables from results/ and compile report/appelbe_report.pdf (run figures first)
+rule = bash scripts/make_report.sh
