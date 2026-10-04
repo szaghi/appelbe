@@ -7,7 +7,7 @@ license    = GPL-3.0-only
 
 [dependencies]
 deps_dir = src/third_party
-PENF     = https://github.com/szaghi/PENF :: tag=v1.3.17
+PENF     = https://github.com/szaghi/PENF :: branch=master
 
 [modes]
 modes = gnu gnu-debug
