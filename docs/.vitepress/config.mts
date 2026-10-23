@@ -39,7 +39,6 @@ const docs = [
       { text: 'Algebraic closure',   link: '/guide/algebraic-closure' },
       { text: 'Transport terms',     link: '/guide/transport' },
       { text: 'Energy spectra',      link: '/guide/distributions' },
-      { text: 'Non-Maxwellian electrons', link: '/guide/electrons' },
       { text: "The paper's set-up",  link: '/guide/paper-setup' },
       { text: 'Drivers and results', link: '/guide/drivers' },
       { text: 'Report pipeline',     link: '/guide/report' },
@@ -51,6 +50,12 @@ const docs = [
     items: [
       { text: 'Reproduction status', link: '/guide/validation' },
       { text: 'Findings and errata', link: '/guide/errata' },
+    ],
+  },
+  {
+    text: 'Beyond the paper',
+    items: [
+      { text: 'Non-Maxwellian electrons (ECE/TS)', link: '/guide/electrons' },
     ],
   },
   {
@@ -95,6 +100,7 @@ export default withMermaid({
         activeMatch: '^/guide/(features|kinetic-solver|algebraic-closure|transport|distributions|paper-setup|drivers|report|architecture)',
       },
       { text: 'Results', link: '/guide/validation', activeMatch: '^/guide/(validation|errata)' },
+      { text: 'ECE/TS', link: '/guide/electrons', activeMatch: '^/(guide/electrons|manual/tutorial/08-electrons)' },
       { text: 'API', link: '/api/' },
       {
         text: 'Project',
