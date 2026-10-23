@@ -1,0 +1,6 @@
+$ ./tut06_spectra
+Gaussian, sigma_E/E = 0.4:  u_energy =  0.5018,  u_flux =  0.4906
+   j_nu broad =  -1.3868,  monoenergetic =  -1.3870
+
+slowing-down, born at v_Te:  u_energy =  0.4270
+   zeta_nu broad =  12.3299,  monoenergetic =  11.7950

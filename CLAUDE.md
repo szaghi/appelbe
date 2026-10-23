@@ -25,6 +25,10 @@ fobis build --mode gnu-debug      # -fcheck=all, FP traps (invalid, zero, overfl
 fobis rule --ex tests             # scripts/run_tests.sh: runs every exe/test_*, stops on first failure
 fobis rule --ex figures           # scripts/make_figures.sh: every exe/appelbe_* -> results/, then gnuplot previews
 fobis rule --ex report            # scripts/make_report.sh: report/generated/*.tex + report/appelbe_report.pdf
+fobis build --mode static-gnu     # the library alone: lib/libappelbe.a + lib/mod (use appelbe, the umbrella module)
+fobis rule --ex docs-examples     # scripts/docs_examples.py: build/run docs/examples/src -> snippets/, output/
+gnuplot scripts/docs_figures.gp   # docs/public/figures/*.svg (needs results/ and report/generated/)
+cd docs && npm install && npm run docs:dev   # the VitePress site (formal regenerates docs/api/ first)
 python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PDFs in references/ (needs mutool)
 ./exe/test_fits                   # run one test program directly
 ./exe/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
@@ -45,6 +49,10 @@ python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PD
 - `make_report.sh` forces pdflatex with `-e '$pdflatex=...'`: the user's `~/.latexmkrc` maps `$pdflatex` to
   xelatex. Do not edit the user's rc.
 - The Python scripts follow the user's Ruff conventions (`ruff check scripts` must pass).
+- Documentation: VitePress in `docs/`, structured like foresight (guide/, manual/tutorial + cookbook, api/ by formal,
+  `.github/workflows/docs.yml` deploys to Pages). Every code block of the tutorial/cookbook is a program in
+  `docs/examples/src/` (`!run` / `!region` markers); its snippets and outputs are generated and committed, so the CI
+  needs no Fortran. After changing the API or results, rerun `docs-examples` and `docs_figures.gp`.
 
 ## Architecture
 

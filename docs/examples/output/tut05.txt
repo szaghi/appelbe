@@ -1,0 +1,5 @@
+$ ./tut05_magnetic_field
+ln(Lambda_ei) =   3.30,  tau_ei =  1.532E-15 s
+advection velocity (perp, wedge) =  -2.389E+04  0.000E+00 m/s
+j0_ea = -3.828E+15 A/m^2
+dB/dt (Eq. 43, 10 um, 1 keV/um) = -7.450E+11 T/s

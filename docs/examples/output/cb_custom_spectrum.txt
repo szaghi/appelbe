@@ -1,0 +1,3 @@
+$ ./cb_custom_spectrum
+u_flux =   0.5052,  u_energy =   0.5065
+j_nu   =  -1.3903,  zeta_nu  =  12.3159

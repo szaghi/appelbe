@@ -1,0 +1,6 @@
+$ ./cb_table && head -4 closure_table.dat && wc -l closure_table.dat
+# v_a/v_Te log10(wt) j_perp j_wedge zeta_perp zeta_wedge
+   0.1000  -3.0000  -1.023347E+00  -3.997875E-03   1.011702E+01   2.560942E-02
+   0.1000  -2.7500  -1.023326E+00  -7.109245E-03   1.011687E+01   4.553998E-02
+   0.1000  -2.5000  -1.023262E+00  -1.264170E-02   1.011641E+01   8.097879E-02
+776 closure_table.dat

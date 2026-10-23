@@ -1,0 +1,56 @@
+name: Docs
+
+# Build the VitePress site and deploy it to GitHub Pages. The examples, their outputs and the figures are committed
+# (regenerated locally by `fobis rule --ex docs-examples` and `gnuplot scripts/docs_figures.gp`), so no Fortran build
+# is needed here: only formal (API pages from the source comments) and VitePress.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install formal
+        run: pip install formal-ford2vitepress
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build documentation
+        run: |
+          cd docs
+          npm install
+          npm run docs:build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

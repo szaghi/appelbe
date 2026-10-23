@@ -1,0 +1,2 @@
+$ ./cb_orientation
+j0_ea / (Z_a e n_a <v_a>) =    0.2416  -0.6356  -0.9795

@@ -1,0 +1,65 @@
+/* appelbe docs: brand colours of a hot plasma (alpha particles in a hotspot): orange to violet. */
+:root {
+  --ap-orange: #f46d1b;
+  --ap-red: #d7263d;
+  --ap-violet: #6a2bd8;
+  --vp-c-brand-1: #c4421a;
+  --vp-c-brand-2: #e0561f;
+  --vp-c-brand-3: #a33514;
+  --vp-c-brand-soft: rgba(244, 109, 27, 0.12);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, var(--ap-orange) 10%, var(--ap-red) 50%, var(--ap-violet));
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(244, 109, 27, 0.35), rgba(106, 43, 216, 0.35));
+  --vp-home-hero-image-filter: blur(56px);
+}
+
+.dark {
+  --vp-c-brand-1: #ff9a5a;
+  --vp-c-brand-2: #ff8040;
+  --vp-c-brand-3: #f46d1b;
+  --vp-c-brand-soft: rgba(255, 154, 90, 0.16);
+}
+
+/* a figure: white as on paper in both themes */
+.ap-figure {
+  margin: 1.5rem auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+.dark .ap-figure {
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+}
+
+.ap-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+.ap-figure figcaption {
+  padding: 0.5rem 1rem 0.7rem;
+  font-size: 0.85rem;
+  color: #444;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+}
+
+.ap-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.ap-gallery .ap-figure {
+  margin: 0;
+}
+
+.ap-lead {
+  font-size: 1.05rem;
+  color: var(--vp-c-text-2);
+}

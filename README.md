@@ -4,6 +4,7 @@
 > A KISS Fortran 2018 reproduction of Appelbe *et al.*, *Phys. Plasmas* **26**, 102704 (2019), Secs. III C–VI: the simple-algebraic closure, the kinetic Fokker–Planck solver behind it, and a LaTeX report comparing every result with the paper.
 
 [![GitHub tag](https://img.shields.io/github/v/tag/szaghi/appelbe)](https://github.com/szaghi/appelbe/tags)
+[![Docs](https://img.shields.io/badge/docs-vitepress-orange)](https://szaghi.github.io/appelbe/)
 [![GitHub issues](https://img.shields.io/github/issues/szaghi/appelbe)](https://github.com/szaghi/appelbe/issues)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://github.com/szaghi/appelbe/blob/main/LICENSE.md)
 
@@ -11,7 +12,8 @@
 |:---:|:---:|:---:|:---:|
 | 📊 **Secs. III C–VI reproduced**<br>All six figures, Tables I–IV, footnote 30, field advection/generation (Sec. V) | 🔍 **Direct comparison**<br>Paper curves extracted from its vector graphics (≈1e-4 of the axis span) and compared point by point | 📄 **Self-updating report**<br>LaTeX/pgfplots PDF built from the last run's results — no hand-copied numbers | ⚡ **KISS**<br>Dense matrices, no LAPACK, one dependency (PENF) — full run in about four minutes |
 
-For the full results, methods and discussion see the **[reproduction report](report/appelbe_report.pdf)**.
+The **[documentation](https://szaghi.github.io/appelbe/)** has a tutorial, a cookbook, the reference and the API; the
+**[reproduction report](report/appelbe_report.pdf)** has the full results, methods and discussion.
 
 ---
 
@@ -38,6 +40,7 @@ The reference paper is **not** distributed: `references/` is git-ignored because
 git clone https://github.com/szaghi/appelbe && cd appelbe
 fobis fetch                   # PENF into src/third_party/
 fobis build --mode gnu        # every program under src/ into exe/
+fobis build --mode static-gnu # the library alone: lib/libappelbe.a, use appelbe
 fobis rule --ex tests         # verification suite (120 checks)
 fobis rule --ex figures       # all drivers -> results/*.dat + gnuplot previews results/*.png
 fobis rule --ex report        # report/generated/*.tex + report/appelbe_report.pdf

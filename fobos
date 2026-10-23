@@ -10,7 +10,7 @@ deps_dir = src/third_party
 PENF     = https://github.com/szaghi/PENF :: branch=master
 
 [modes]
-modes = gnu gnu-debug
+modes = gnu gnu-debug static-gnu
 
 [common-variables]
 $CFLAGS_GNU = -c -frealloc-lhs -ffree-line-length-132
@@ -37,6 +37,15 @@ cflags   = $CFLAGS_GNU $OPT_GNU
 template = template-gnu
 cflags   = $CFLAGS_GNU $DEBUG_GNU
 
+# the library alone: lib/libappelbe.a and its modules in lib/mod (use appelbe)
+[static-gnu]
+template  = template-gnu
+cflags    = $CFLAGS_GNU $OPT_GNU
+build_dir = ./lib/
+target    = appelbe.F90
+output    = libappelbe.a
+mklib     = static
+
 [rule-tests]
 help = Run every test program (build first)
 rule = bash scripts/run_tests.sh
@@ -44,6 +53,10 @@ rule = bash scripts/run_tests.sh
 [rule-figures]
 help = Run every reproduction driver and plot the results with gnuplot (build first)
 rule = bash scripts/make_figures.sh
+
+[rule-docs-examples]
+help = Build and run the documentation examples: docs/examples/{snippets,output}
+rule = python3 scripts/docs_examples.py
 
 [rule-report]
 help = Generate report numbers/tables from results/ and compile report/appelbe_report.pdf (run figures first)
