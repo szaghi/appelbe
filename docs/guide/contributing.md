@@ -23,8 +23,8 @@ Simple and Stupid) philosophy: simplicity and maintainability over performance.
    ```
 3. If the change affects results, regenerate them and the report (`fobis rule --ex figures`, `fobis rule --ex report`)
    and check `git diff` of `report/`.
-4. If it affects the documented behaviour, regenerate the examples (`fobis rule --ex docs-examples`) and the figures
-   (`gnuplot scripts/docs_figures.gp`).
+4. If it affects the documented behaviour, regenerate the examples (`fobis rule --ex docs-examples`). The figures of
+   this site are the report's own, so `fobis rule --ex report` refreshes them.
 5. Python scripts must pass `ruff check scripts`.
 6. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
 
@@ -40,6 +40,6 @@ Simple and Stupid) philosophy: simplicity and maintainability over performance.
 
 ```bash
 fobis rule --ex docs-examples          # snippets and outputs of the tutorial and cookbook
-gnuplot scripts/docs_figures.gp        # docs/public/figures/*.svg (needs results/ and report/generated/)
+fobis rule --ex report                 # report PDF and docs/public/figures/*.svg (the same figures)
 cd docs && npm install && npm run docs:dev
 ```

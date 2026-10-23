@@ -80,7 +80,7 @@ other force vanishes. Lines are this code; circles are the paper's Fig. 1, read 
 
 <figure class="ap-figure">
   <img src="/figures/fig1.svg" alt="Electron f1 driven by fast alpha particles, this work against the paper" />
-  <figcaption>Fig. 1 of the paper. The dashed red line is the same solution on the paper's coarse grid, which accounts
+  <figcaption>Fig. 1 of the paper. The dotted red line is the same solution on the paper's coarse grid, which accounts
   for the deeper lobe of its f<sub>1⊥</sub> (<a href="./guide/paper-setup">the paper's set-up</a>).</figcaption>
 </figure>
 
@@ -103,13 +103,12 @@ fobis rule --ex figures          # reproduce the paper: results/*.dat
 list what the comparison revealed about the paper.</p>
 
 <div class="ap-gallery">
-  <figure class="ap-figure"><img src="/figures/fig2.svg" alt="Fig. 2" /><figcaption>Fig. 2 — unmagnetised current ratio for protons, α particles and carbon</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig3_j.svg" alt="Fig. 3 top" /><figcaption>Fig. 3 — induced current versus the Hall parameter</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig3_zeta.svg" alt="Fig. 3 bottom" /><figcaption>Fig. 3 — induced heat flow versus the Hall parameter</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig4.svg" alt="Fig. 4" /><figcaption>Fig. 4 — heat flow in an unmagnetised plasma</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig5_perp.svg" alt="Fig. 5 top" /><figcaption>Fig. 5 — magnetised heat flow along the α flux</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig5_wedge.svg" alt="Fig. 5 bottom" /><figcaption>Fig. 5 — magnetised heat flow along b × flux</figcaption></figure>
-  <figure class="ap-figure"><img src="/figures/fig6.svg" alt="Fig. 6" /><figcaption>Fig. 6 — conventional coefficients with an isotropic α population</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/fig2.svg" alt="Unmagnetised current ratio, this work against the paper's Fig. 2" /><figcaption>Fig. 2 — unmagnetised current ratio for protons, α particles and carbon</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/fig3.svg" alt="Induced current and heat flow versus the Hall parameter, this work against the paper's Fig. 3" /><figcaption>Fig. 3 — induced current and heat flow versus the Hall parameter</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/fig4.svg" alt="Unmagnetised heat flow, this work against the paper's Fig. 4" /><figcaption>Fig. 4 — heat flow in an unmagnetised plasma</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/fig5.svg" alt="Magnetised heat flow, this work against the paper's Fig. 5" /><figcaption>Fig. 5 — magnetised heat flow, along the α flux and along b × flux</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/fig6.svg" alt="Coefficients with an isotropic alpha population, this work against the paper's Fig. 6" /><figcaption>Fig. 6 — conventional coefficients with an isotropic α population</figcaption></figure>
+  <figure class="ap-figure"><img src="/figures/solvers.svg" alt="The paper's solver against the complex formulation" /><figcaption>The paper's solver against the complex formulation</figcaption></figure>
 </div>
 
 ## Reference

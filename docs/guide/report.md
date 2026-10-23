@@ -18,11 +18,19 @@ flowchart LR
   data --> tex
   gen --> tex
   tex -->|latexmk| out[appelbe_report.pdf]
+  tex -->|tikz external| figs[report/figures/*.pdf]
+  figs -->|pdftocairo -svg| svg[docs/public/figures/*.svg]
 ```
+
+Every figure of the report is also the figure of this site. The report externalises each `tikzpicture` (TikZ
+`external` library, hence `-shell-escape`) to `report/figures/<name>.pdf`, and `make_report.sh` converts each one to
+`docs/public/figures/<name>.svg`. The two can never disagree, and a figure added to the report needs only a
+`\tikzsetnextfilename{<name>}` before its `tikzpicture` and an `<img src="/figures/<name>.svg">` on a page.
+`report/figures/` is emptied before each build, because TikZ `external` checks the plot code, not the data files.
 
 ```bash
 fobis rule --ex figures      # results/
-fobis rule --ex report       # scripts/make_report.sh: report_numbers.py, then latexmk -pdf
+fobis rule --ex report       # scripts/make_report.sh: report_numbers.py, latexmk -pdf, then the SVGs of the site
 ```
 
 ## Curves from the paper

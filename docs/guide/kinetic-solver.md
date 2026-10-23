@@ -100,6 +100,11 @@ $10^{-9}$ at 401 nodes ($10^{-7}$ at 1601). The paper's residual in the first-or
 but it is about twice as fast. The paper prints the right-hand sides of Eqs. B6–B7 as "$(G \pm \Omega)g_{7x,y}$", which
 drops the cross-component coupling; the implemented form follows from Eq. B5.
 
+<figure class="ap-figure">
+  <img src="/figures/solvers.svg" alt="The paper's solver against the complex formulation" />
+  <figcaption>Left: largest relative difference between the two solvers. Right: residuals in the first-order system; the paper's squared-operator route loses accuracy at small ωτ and large N (ωτ = 0, where both solve G f<sub>1</sub> = g<sub>7</sub>, is off the logarithmic axis).</figcaption>
+</figure>
+
 ## Lower-level access
 
 | Procedure | Returns |

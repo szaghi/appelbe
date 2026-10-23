@@ -51,6 +51,11 @@ misses the minimum of the α curve ($-1.50$ at $v_\alpha/v_{Te} \approx 0.77$), 
 to contradict Table I ($-1.39$): a straight line through our values at the same samples gives $-1.339$, and our exact
 value is $-1.378$. The paper is consistent; its plot is coarse.
 
+<figure class="ap-figure">
+  <img src="/figures/fig2.svg" alt="Unmagnetised current ratio, this work against the paper's Fig. 2" />
+  <figcaption>Unmagnetised current ratio, DT. Solid: this work, paper's set-up (n<sub>α</sub>/n<sub>e</sub> = 10<sup>−3</sup>); dotted: carbon with n<sub>α</sub>/n<sub>e</sub> = 0. Circles: the paper's Fig. 2 (a polyline through 25 samples). Squares: the paper's Table I, ωτ = 0 column, for α particles.</figcaption>
+</figure>
+
 ## The speed grid
 
 The data points of Fig. 1 are equally spaced, by $\Delta u = 0.0253$: the paper plots its solution at its nodes. On so
@@ -75,6 +80,11 @@ residuals of every other figure:
 
 The paper's results thus carry its discretisation error: up to 10% in the lobe of $f_{1\perp}$, 0.04 in
 $j^0_{e\alpha}/j^0_\alpha$ for carbon. The lobe weighs little in the moments, which is why the closure is far less affected.
+
+<figure class="ap-figure">
+  <img src="/figures/fig1.svg" alt="Electron f1 driven by fast alpha particles, this work against the paper's Fig. 1" />
+  <figcaption>Electron f<sub>1</sub> driven by 3.45 MeV α particles at T<sub>e</sub> = 2 keV (v<sub>α</sub>/v<sub>Te</sub> = 0.486), each curve normalised by its maximum. Solid: this work, converged. Dotted: f<sub>1⊥</sub> on the paper's grid. Circles: the paper's Fig. 1.</figcaption>
+</figure>
 
 ## The speed printed 0.33 is 1/3
 
@@ -101,6 +111,11 @@ form tends to $(\beta_\perp(0) - \beta_\perp)/\omega\tau \to 0.690$ at $\omega\t
 of large terms, this is what puts the paper's $q_{e\wedge}$ 18–29% away from the exact one. The fits are evaluated in
 `scripts/report_numbers.py` (the solver gives the exact tensor); the Epperlein–Haines curve of Davies et al., Fig. 4(a),
 extracted from their manuscript, agrees with the transcription to 0.002.
+
+<figure class="ap-figure">
+  <img src="/figures/fig5.svg" alt="Magnetised heat flow, this work against the paper's Fig. 5" />
+  <figcaption>Heat flow induced by 3.45 MeV α particles moving orthogonally to <b>B</b>, normalised by n<sub>α</sub>⟨v<sub>α</sub>⟩T<sub>e</sub>[keV]. Top: component along the flux; bottom: along <b>b</b>×flux. Solid: the paper's numerics (kinetic closure on its grid, Epperlein–Haines fitted β); dotted: this work, converged kinetic closure with the exact β; dashed: algebraic closure with the fitted β; circles: the paper's Fig. 5.</figcaption>
+</figure>
 
 ## Coulomb logarithms
 

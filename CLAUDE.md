@@ -27,10 +27,9 @@ fobis build --mode gnu            # -O2; builds every program under src/ into ex
 fobis build --mode gnu-debug      # -fcheck=all, FP traps (invalid, zero, overflow), -finit-real=snan
 fobis rule --ex tests             # scripts/run_tests.sh: runs every exe/test_*, stops on first failure
 fobis rule --ex figures           # scripts/make_figures.sh: every exe/appelbe_* -> results/, then gnuplot previews
-fobis rule --ex report            # scripts/make_report.sh: report/generated/*.tex + report/appelbe_report.pdf
+fobis rule --ex report            # make_report.sh: report/generated/*.tex, report/appelbe_report.pdf, docs/public/figures/*.svg
 fobis build --mode static-gnu     # the library alone: lib/libappelbe.a + lib/mod (use appelbe, the umbrella module)
 fobis rule --ex docs-examples     # scripts/docs_examples.py: build/run docs/examples/src -> snippets/, output/
-gnuplot scripts/docs_figures.gp   # docs/public/figures/*.svg (needs results/ and report/generated/)
 cd docs && npm install && npm run docs:dev   # the VitePress site (formal regenerates docs/api/ first)
 python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PDFs in references/ (needs mutool)
 ./exe/test_fits                   # run one test program directly
@@ -56,7 +55,12 @@ python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PD
 - Documentation: VitePress in `docs/`, structured like foresight (guide/, manual/tutorial + cookbook, api/ by formal,
   `.github/workflows/docs.yml` deploys to Pages). Every code block of the tutorial/cookbook is a program in
   `docs/examples/src/` (`!run` / `!region` markers); its snippets and outputs are generated and committed, so the CI
-  needs no Fortran. After changing the API or results, rerun `docs-examples` and `docs_figures.gp`.
+  needs no Fortran. After changing the API or results, rerun `docs-examples` and `report`.
+- **Figures: one source.** The report's pgfplots figures are the site's figures. Each `tikzpicture` has
+  `\tikzsetnextfilename{<name>}`; TikZ `external` (pdflatex `-shell-escape`) writes `report/figures/<name>.pdf`
+  (git-ignored, emptied before each build: `external` checks the code, not the data), and `make_report.sh` converts
+  each to `docs/public/figures/<name>.svg` (`pdftocairo -svg`, committed). The docs captions repeat the report's.
+  Never draw a docs-only figure: add it to the report.
 
 ## Architecture
 

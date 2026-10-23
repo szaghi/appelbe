@@ -54,7 +54,7 @@ src/lib/      library, one module per file (appelbe.F90 re-exports the public AP
 src/app/      drivers appelbe_*: one per figure or section, write results/
 src/tests/    test programs test_* and the assertion helper
 scripts/      run_tests.sh, make_figures.sh, make_report.sh, docs_examples.py,
-              digitize_paper.py, report_numbers.py, docs_figures.gp, *.gp previews
+              digitize_paper.py, report_numbers.py, *.gp previews
 report/       appelbe_report.tex, data/ (curves extracted from the paper)
 docs/         this site; examples/src/ holds the programs of the tutorial and cookbook
 ```

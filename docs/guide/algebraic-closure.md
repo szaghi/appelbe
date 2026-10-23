@@ -51,6 +51,11 @@ data match $1/3$ and not 0.33 ([the paper's set-up](paper-setup#the-speed-printe
 The residual of the kinetic solution against the fits is the fits' own error: the kinetic solution reproduces the
 paper's Fig. 3 to $10^{-3}$.
 
+<figure class="ap-figure">
+  <img src="/figures/fig3.svg" alt="Induced current and heat flow versus the Hall parameter, this work against the paper's Fig. 3" />
+  <figcaption>Collisionally induced current (top) and heat flow (bottom) for α particles in DT, at the speeds of the paper's Fig. 3. Lines: this work (kinetic, paper's set-up, converged), solid ⊥, dashed ∧. Markers: the paper's Fig. 3, circles ⊥, triangles ∧.</figcaption>
+</figure>
+
 ## Limits
 
 The six nodes are far apart where it matters most. Between $v_\alpha/v_{Te} = 1$ and 0.5 ($T_e \approx 0.5$–1.9 keV for

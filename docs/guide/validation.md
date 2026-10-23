@@ -22,6 +22,11 @@ Measured on 2026-10-23 with gfortran 16.2. `fobis rule --ex tests` runs 150 chec
 | Lorentz gas, non-Maxwellian f₀ | σ, K ratios to $10^{-6}$ | $\int u^5 f_0$, $\int u^9 f_0$ ([Non-Maxwellian electrons](electrons#verification)) |
 | Complex vs paper solver | $10^{-9}$ (401 nodes), $10^{-7}$ (1601) | — |
 
+<figure class="ap-figure">
+  <img src="/figures/solvers.svg" alt="The paper's solver against the complex formulation" />
+  <figcaption>Left: largest relative difference between the two solvers. Right: residuals in the first-order system; the paper's squared-operator route loses accuracy at small ωτ and large N (ωτ = 0, where both solve G f<sub>1</sub> = g<sub>7</sub>, is off the logarithmic axis).</figcaption>
+</figure>
+
 ## Every curve of the paper
 
 Max deviation over each curve, in percent of its peak (RMS in brackets). **Converged**: our kinetic closure in the
@@ -52,6 +57,40 @@ The larger converged deviations are the paper's discretisation error (Fig. 1, $f
 Fig. 5 $q_{e\wedge}$ differs by 18% (15 keV) and 29% (1 keV): the paper's Epperlein–Haines $\beta$. The algebraic closure's
 22% at 1 keV is its node spacing ([Algebraic closure](algebraic-closure#limits)), not a discrepancy with the paper,
 which computed Fig. 5 kinetically.
+
+### The figures
+
+The same figures as the report ([PDF](https://github.com/szaghi/appelbe/blob/main/report/appelbe_report.pdf)), from the same data.
+
+<figure class="ap-figure">
+  <img src="/figures/fig1.svg" alt="Electron f1 driven by fast alpha particles, this work against the paper's Fig. 1" />
+  <figcaption>Electron f<sub>1</sub> driven by 3.45 MeV α particles at T<sub>e</sub> = 2 keV (v<sub>α</sub>/v<sub>Te</sub> = 0.486), each curve normalised by its maximum. Solid: this work, converged. Dotted: f<sub>1⊥</sub> on the paper's grid. Circles: the paper's Fig. 1.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig2.svg" alt="Unmagnetised current ratio, this work against the paper's Fig. 2" />
+  <figcaption>Unmagnetised current ratio, DT. Solid: this work, paper's set-up (n<sub>α</sub>/n<sub>e</sub> = 10<sup>−3</sup>); dotted: carbon with n<sub>α</sub>/n<sub>e</sub> = 0. Circles: the paper's Fig. 2 (a polyline through 25 samples). Squares: the paper's Table I, ωτ = 0 column, for α particles.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig3.svg" alt="Induced current and heat flow versus the Hall parameter, this work against the paper's Fig. 3" />
+  <figcaption>Collisionally induced current (top) and heat flow (bottom) for α particles in DT, at the speeds of the paper's Fig. 3. Lines: this work (kinetic, paper's set-up, converged), solid ⊥, dashed ∧. Markers: the paper's Fig. 3, circles ⊥, triangles ∧.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig4.svg" alt="Unmagnetised heat flow, this work against the paper's Fig. 4" />
+  <figcaption>Heat flow induced by electron–α collisions, unmagnetised DT, E<sub>α</sub> = 3.45 MeV. Solid: this work, kinetic closure (paper's set-up). Dashed: this work, algebraic closure (Appendix C). Circles: the paper's Fig. 4.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig5.svg" alt="Magnetised heat flow, this work against the paper's Fig. 5" />
+  <figcaption>Heat flow induced by 3.45 MeV α particles moving orthogonally to <b>B</b>, normalised by n<sub>α</sub>⟨v<sub>α</sub>⟩T<sub>e</sub>[keV]. Top: component along the flux; bottom: along <b>b</b>×flux. Solid: the paper's numerics (kinetic closure on its grid, Epperlein–Haines fitted β); dotted: this work, converged kinetic closure with the exact β; dashed: algebraic closure with the fitted β; circles: the paper's Fig. 5.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig6.svg" alt="Coefficients with an isotropic alpha population, this work against the paper's Fig. 6" />
+  <figcaption>Thermal diffusion K<sub>∥</sub> (solid) and energy conductivity μ<sub>∥</sub> (dashed) with an isotropic 3.45 MeV α population, normalised by their values without α particles. Markers: the paper's Fig. 6 (circles K<sub>∥</sub>, triangles μ<sub>∥</sub>).</figcaption>
+</figure>
 
 ## Tables and quoted numbers
 

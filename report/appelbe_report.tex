@@ -16,6 +16,10 @@
 \usepackage{cleveref}
 \pgfplotsset{compat=1.18, table/comment chars={\#}}
 \usepgfplotslibrary{groupplots}
+% every figure is also written to figures/<name>.pdf (needs -shell-escape): make_report.sh converts them to the SVGs of
+% the documentation site, so the PDF and the site show the same figures
+\usetikzlibrary{external}
+\tikzexternalize[prefix=figures/]
 \hypersetup{colorlinks=true, linkcolor=blue!50!black, citecolor=blue!50!black, urlcolor=blue!50!black}
 \captionsetup{font=small, labelfont=bf}
 
@@ -252,6 +256,7 @@ $N$ & $\ot$ & max rel.\ diff. & residual, complex & residual, paper & $t_\mathrm
 \end{table}
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{solvers}
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.8cm}, width=0.47\linewidth, height=5.6cm,
                   xmode=log, ymode=log, xlabel={$\ot$}]
@@ -383,6 +388,7 @@ peak, $0.26\%$ for the unmagnetised one and $f_{1\wedge}$ (\cref{tab:digitized})
 moments $\int u^3f_1$, $\int u^5f_1$, which is why the moments of Fig.~3 differ far less.
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig1}
 \begin{tikzpicture}
 \begin{axis}[xmin=0, xmax=3, ymin=-1.3, ymax=1.1, xlabel={$v/v_{Te}$}, ylabel={electron distribution (normalised)},
              legend pos=south east]
@@ -412,6 +418,7 @@ $T_e=1$--$2$\,keV has $v_\alpha/v_{Te}=2$--$3$. There the ratio collapses toward
 $\alpha$ particles): a fast ion much faster than the electrons drags them only weakly.
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig2}
 \begin{tikzpicture}
 \begin{axis}[xmode=log, xmin=0.1, xmax=3, ymin=-7, ymax=1, xlabel={$v_\alpha/v_{Te}$},
              ylabel={$j^0_{e\alpha}/j^0_\alpha$}, width=0.72\linewidth, legend pos=outer north east]
@@ -477,6 +484,7 @@ our solution against Tables~I--IV (\cref{tab:fig3}), at all six nodes including 
 grid); the paper's grid changes it little.
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig3}
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=1 by 2, vertical sep=1.4cm}, height=5.4cm, xmin=-3, xmax=3,
                   xlabel={$\log_{10}\ot$}]
@@ -574,6 +582,7 @@ $\zeta_{e\alpha}$ is parallel to it and larger, so the net electron heat flow fo
 $\beta_\parallel=\ZoneBeta$ is used throughout.
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig4}
 \begin{tikzpicture}
 \begin{axis}[xmin=1, xmax=15, xlabel={$T_e$ [keV]}, ylabel={$q_e/(n_\alpha\langle v_\alpha\rangle)$ [W\,s]},
              legend pos=north west, legend columns=2]
@@ -633,6 +642,7 @@ Closure & $q_{e\perp}$ [\%] & $q_{e\wedge}$ [\%]\\\midrule
 \end{table}
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig5}
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=1 by 2, vertical sep=1.4cm}, height=5.6cm, xmin=-3, xmax=3,
                   xlabel={$\log_{10}\ot$}]
@@ -738,6 +748,7 @@ $10^{-1}$, and is larger at higher temperature (smaller $v_\alpha/v_{Te}$). It i
 $n_\alpha/n_e=10^{-3}$, the paper kept in its fast-ion runs (\cref{sec:nratio}).
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{fig6}
 \begin{tikzpicture}
 \begin{axis}[xmode=log, xmin=1e-4, xmax=1e-1, ymin=0.8, ymax=1.0, xlabel={$n_\alpha/n_e$},
              ylabel={normalised coefficient}, legend pos=south west]
@@ -846,7 +857,7 @@ ECE slope temperature spans $\ElSlopeMin$--$\ElSlopeMax$ on $1\le u_L\le4$. Agai
 coefficients change by $\ElRefSigma\%$ ($\sigma$), $\ElRefKappa\%$ ($\kappa$), $\ElRefJ\%$ ($j^\nu$) and $\ElRefZeta\%$
 ($\zeta^\nu$) at $\ot=0$.
 
-The scans in $A\in[-0.3,0.3]$, $u_0\in[0.5,4]$ and $w\in[0.1,1]$ (\cref{tab:electrons}) move the ECE readout between
+The scans in $A\in[-0.3,0.3]$, $u_0\in[0.5,4]$ and $w\in[0.1,1]$ (\cref{tab:electrons,fig:electrons-readouts}) move the ECE readout between
 $\ElSlopeMinAll$ and $\ElSlopeMaxAll$, and TS by at most $\ElTsMax\%$. The coefficients are compared with two baselines.
 The Maxwellian at $T_e$ mixes a temperature shift into the comparison: a broad distortion raises
 $\tfrac23\langle u^2\rangle$ by up to 3\%, and $\sigma\propto T^{3/2}$ in normalised units. The Maxwellian of equal energy
@@ -859,6 +870,7 @@ fails at first order in $A$ ($-1.8\%$ at $A=0.1$, $w=0.5$). The density-gradient
 into $\mathbf E+\nabla P_e/(en_e)$.
 
 \begin{figure}[htb]\centering
+\tikzsetnextfilename{electrons}
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.6cm}, width=0.48\textwidth, height=0.36\textwidth]
 \nextgroupplot[xmin=0, xmax=4, ymin=-0.25, ymax=0.3, xlabel={$u_L=p/\sqrt{m_eT_e}$},
@@ -885,7 +897,25 @@ density renormalisation). Right: the change of the coefficients and of the $\alp
 \label{fig:electrons}
 \end{figure}
 
-\begin{table}[htb]\centering\small
+\begin{figure}[htb]\centering
+\tikzsetnextfilename{electrons_readouts}
+\begin{tikzpicture}
+\begin{axis}[xmin=0.1, xmax=1, ymin=0.7, ymax=2.1, xlabel={$w$}, ylabel={$T/T_e$}, legend pos=north east]
+\addplot[kin, blue, mark=*, mark size=1pt] table[x index=0, y index=1] {\R/electrons_scan_w.dat};
+\addlegendentry{$T_{\mathrm{TS}}$, fit on $w\le2$}
+\addplot[kin, dashed, blue] table[x index=0, y index=3] {\R/electrons_scan_w.dat};
+\addlegendentry{$T_{\mathrm{kin}}=\tfrac23\langle u^2\rangle$}
+\addplot[kin, red, mark=*, mark size=1pt] table[x index=0, y index=4] {\R/electrons_scan_w.dat};
+\addlegendentry{$T_{\mathrm{slope}}$, min and max on $1\le u_L\le4$}
+\addplot[kin, red, mark=*, mark size=1pt, forget plot] table[x index=0, y index=5] {\R/electrons_scan_w.dat};
+\end{axis}
+\end{tikzpicture}
+\caption{What the diagnostics read against the width $w$ of the bipolar distortion ($A=0.1$, $u_0=2$): TS stays within
+$3\%$ of $T_e$, while the ECE slope temperature spans $0.80$--$2.0$ for a narrow feature.}
+\label{fig:electrons-readouts}
+\end{figure}
+
+\begin{table}[htb]\centering\footnotesize\setlength{\tabcolsep}{3pt}
 \caption{Largest relative change (\%) at $\ot=0$ over each one-parameter scan around $A=0.1$, $u_0=2$, $w=0.25$, and
 where it occurs. For each scan, the first column is against the Maxwellian at $T_e$ and the second against the
 Maxwellian of equal energy.}

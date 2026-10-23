@@ -1,7 +1,7 @@
 name: Docs
 
 # Build the VitePress site and deploy it to GitHub Pages. The examples, their outputs and the figures are committed
-# (regenerated locally by `fobis rule --ex docs-examples` and `gnuplot scripts/docs_figures.gp`), so no Fortran build
+# (regenerated locally by `fobis rule --ex docs-examples` and `fobis rule --ex report`), so no Fortran build
 # is needed here: only formal (API pages from the source comments) and VitePress.
 
 on:

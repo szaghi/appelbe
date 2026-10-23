@@ -11,6 +11,12 @@ for f in validation.dat solvers.dat convergence.dat fig1.dat fig1_paper.dat fig2
 done
 python3 scripts/report_numbers.py
 cd report
-# force pdflatex: a user ~/.latexmkrc may remap $pdflatex (e.g. to xelatex)
-latexmk -pdf -e '$pdflatex=q/pdflatex %O %S/' -interaction=nonstopmode -halt-on-error appelbe_report.tex
+# figures are externalised to figures/*.pdf; tikz external only checks the plot code, not the data, so start clean
+rm -rf figures && mkdir figures
+# force pdflatex (a user ~/.latexmkrc may remap $pdflatex, e.g. to xelatex); -shell-escape for the externalised figures
+latexmk -g -pdf -e '$pdflatex=q/pdflatex -shell-escape %O %S/' -interaction=nonstopmode -halt-on-error appelbe_report.tex
+# the same figures for the documentation site
+for f in figures/*.pdf; do
+  pdftocairo -svg "$f" "../docs/public/figures/$(basename "${f%.pdf}").svg"
+done
 echo "report: report/appelbe_report.pdf"

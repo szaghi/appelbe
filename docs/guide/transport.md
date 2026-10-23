@@ -25,6 +25,16 @@ $q_\perp = (T_e/e)[(\beta_\perp + \tfrac52)(j^0)_\perp - \beta_\wedge(j^0)_\wedg
 $q_\wedge = (T_e/e)[\beta_\wedge(j^0)_\perp + (\beta_\perp + \tfrac52)(j^0)_\wedge] + \zeta_\wedge$. Unmagnetised, only the real
 parts survive (Eq. 33). The paper's Fig. 5 divides by $T_{\text{keV}}$ as well.
 
+<figure class="ap-figure">
+  <img src="/figures/fig4.svg" alt="Unmagnetised heat flow, this work against the paper's Fig. 4" />
+  <figcaption>Heat flow induced by electron–α collisions, unmagnetised DT, E<sub>α</sub> = 3.45 MeV. Solid: this work, kinetic closure (paper's set-up). Dashed: this work, algebraic closure (Appendix C). Circles: the paper's Fig. 4.</figcaption>
+</figure>
+
+<figure class="ap-figure">
+  <img src="/figures/fig5.svg" alt="Magnetised heat flow, this work against the paper's Fig. 5" />
+  <figcaption>Heat flow induced by 3.45 MeV α particles moving orthogonally to <b>B</b>, normalised by n<sub>α</sub>⟨v<sub>α</sub>⟩T<sub>e</sub>[keV]. Top: component along the flux; bottom: along <b>b</b>×flux. Solid: the paper's numerics (kinetic closure on its grid, Epperlein–Haines fitted β); dotted: this work, converged kinetic closure with the exact β; dashed: algebraic closure with the fitted β; circles: the paper's Fig. 5.</figcaption>
+</figure>
+
 ## Magnetic field
 
 ```fortran

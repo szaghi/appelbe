@@ -67,9 +67,8 @@ Senni et al. take $A = 0.1$, $u_0 = 2$, $w = 0.25$. The driver `appelbe_electron
 3.45 MeV α particles at $T_e = 10$ keV with $n_\alpha/n_e = 10^{-3}$, on 801 nodes.
 
 <figure class="ap-figure">
-  <img src="/figures/electrons_profile.svg" alt="Bipolar distortion: deviation of f0, of its derivative and of the slope temperature" />
-  <figcaption>The reference distortion. f₀ changes by 6%, its slope by 21%, and the local slope temperature by
-  −11% to +25%. The 0.6% offset at small and large u is the density renormalisation.</figcaption>
+  <img src="/figures/electrons.svg" alt="Bipolar distortion of f0 and the change of transport against its width" />
+  <figcaption>Non-Maxwellian electrons. Left: the bipolar distortion A = 0.1, u<sub>0</sub> = 2, w = 0.25 (the 0.6% offset is the density renormalisation). Right: the change of the coefficients and of the α closure against the width w (A = 0.1, u<sub>0</sub> = 2). Solid lines are against the Maxwellian at T<sub>e</sub>, dashed lines against the Maxwellian of equal energy.</figcaption>
 </figure>
 
 | Quantity | Slides | appelbe |
@@ -85,21 +84,15 @@ Senni et al. take $A = 0.1$, $u_0 = 2$, $w = 0.25$. The driver `appelbe_electron
 $w \in [0.1, 1]$. It writes `results/electrons_scan_{A,u0,w}.dat`.
 
 <figure class="ap-figure">
-  <img src="/figures/electrons_readouts.svg" alt="TS and ECE readouts versus the width of the distortion" />
-  <figcaption>The readouts against the width w (A = 0.1, u₀ = 2). TS stays within 3% of T_e; the ECE slope temperature
-  spans 0.80–2.0 for a narrow feature.</figcaption>
+  <img src="/figures/electrons_readouts.svg" alt="TS and ECE readouts against the width of the distortion" />
+  <figcaption>What the diagnostics read against the width w of the bipolar distortion (A = 0.1, u<sub>0</sub> = 2): TS stays within 3% of T<sub>e</sub>, while the ECE slope temperature spans 0.80–2.0 for a narrow feature.</figcaption>
 </figure>
 
-The relative changes of the transport coefficients depend on the baseline. Against the Maxwellian at $T_e$, part of the
+The relative changes of the transport coefficients (right panel of the first figure) depend on the baseline. Against the Maxwellian at $T_e$, part of the
 change is only a temperature shift: a broad distortion raises $T_{\text{kin}}$ by up to 3%, and in normalised units
 $\sigma \propto T^{3/2}$. The baseline that isolates the effect of the shape is the Maxwellian of **equal energy**,
-$T = T_{\text{kin}}$ (dashed lines below).
+$T = T_{\text{kin}}$ (dashed lines).
 
-<figure class="ap-figure">
-  <img src="/figures/electrons_transport.svg" alt="Change of transport coefficients and alpha closure versus the width" />
-  <figcaption>Relative change at ωτ = 0. Solid lines are against the Maxwellian at T_e, dashed lines against the
-  Maxwellian at T_kin. σ is almost entirely a temperature effect; κ is a genuine shape effect.</figcaption>
-</figure>
 
 Largest changes over the three scans at ωτ = 0, against the equal-energy Maxwellian:
 
