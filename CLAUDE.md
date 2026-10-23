@@ -12,6 +12,9 @@ to `~/fortran/adam`, specifically:
 - **PRISM** (with PIC): a natural source of the fast-ion flux `n_α⟨v_α⟩` as a particle moment.
 
 The current code is a **fast, simple reproduction of Secs. III C–VI** (all six figures, Tables I–IV, footnote 30).
+Beyond the paper, the solver accepts **any electron f₀** (analytic or tabulated). This is for L. Senni's ECE/TS
+discrepancy work (IAC-CNR, INDACO code; talk `references/ICFDT8_LS.pdf`), and it is now the first goal. See "Non-Maxwellian
+electrons" below.
 The goals are simplicity and maintainability, not performance: dense matrices, no parallelism, no LAPACK. When wiring into adam, read
 `~/fortran/adam/CLAUDE.md` first. It defines the realm and component architecture, and it forbids new
 `*_global` singletons.
@@ -32,6 +35,7 @@ cd docs && npm install && npm run docs:dev   # the VitePress site (formal regene
 python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PDFs in references/ (needs mutool)
 ./exe/test_fits                   # run one test program directly
 ./exe/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
+./exe/appelbe_electrons f0.dat    # tabulated electron f0 (columns u_L, f0): readouts printed, results/electrons_table_*
 ```
 
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
@@ -86,7 +90,8 @@ The rest of the library and tooling:
   solution and the same on the paper's grid ("paper's numerics"): `fig1` (+ `fig1_paper`), `fig2` (dense +
   `fig2_samples`: n_a/n_e = 0, 1e-3, paper grid), `fig3` (table nodes vs fits + `fig3_paper_v*` at the legend speeds),
   `fig4`, `fig5` (j, zeta, beta converged, fitted and on the paper grid), `fig6`, `footnote30`, `sec5`
-  (`sec5.txt` plus `sec5_{advection,carbon,gradient}.dat`), `validation`, `solvers` (+ `convergence.dat`).
+  (`sec5.txt` plus `sec5_{advection,carbon,gradient}.dat`), `validation`, `solvers` (+ `convergence.dat`), `electrons`
+  (`electrons_profile.dat`, `electrons_f1.dat`, `electrons_scan_{A,u0,w}.dat`; previews by `scripts/electrons.gp`).
 - Report pipeline: `scripts/digitize_paper.py` → `report/data/paper_<fig>_<curve>.dat` and
   `report/data/davies2021_fig4a_EH_beta_new.dat` (committed; derived from the git-ignored PDFs
   `references/appelbe-2019.pdf` and `references/davies-2021.pdf`, the OSTI accepted manuscript of Davies et al., Phys.
@@ -129,7 +134,7 @@ Kinetic-solver design points that are not obvious from any single file:
 
 ## Validation status
 
-Measured on 2026-10-23. `fobis rule --ex tests` runs 120 checks, and all pass in both modes (`gnu-debug` traps FP
+Measured on 2026-10-23. `fobis rule --ex tests` runs 150 checks, and all pass in both modes (`gnu-debug` traps FP
 overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). The full comparison is in
 `report/appelbe_report.pdf`; the key results:
 
@@ -185,6 +190,51 @@ overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distr
   - Scenario B (carbon beam): at 1–2 keV the beam has v_a/v_Te = 2–3, beyond Fig. 2. There
     j⁰_eα/j⁰_α collapses (−0.05 at 1 keV, −1.7 at 2 keV). The paper's blanket "≈ −5" overestimates the
     low-T end, so the kinetic rates are 3×10¹²–6×10¹³ T/s against the paper's 10¹³–10¹⁵.
+
+## Non-Maxwellian electrons (beyond the paper)
+
+The goal: quantify the ECE/TS temperature discrepancy and its effect on transport and on the α closure. TS reads f₀,
+while ECE absorption reads f₀′. The physics goals of Luca Senni are not fully pinned down; Stefano assists on the math.
+
+- **API:** `op%init(..., electrons=f, electron_params=p)` with `f` of the `speed_distribution` interface. The distributions
+  are `electron_maxwellian` (`[T/T_e]`), `electron_bipolar` (`[A, u_0, w]`, Eq. 21 of the slides, momenta in
+  sqrt(m_e T_e), so u_L = sqrt(2) u) and `electron_table` (pack with `electron_table_params(x, f)`, x = u_L from 0;
+  spline of ln f, zero slope at 0, linear beyond the end; `read_table` reads two columns).
+  - Without `electrons`, the closed Maxwellian forms run as before. f₀′ and f₀″ come from five-point differences with
+    step 1e-3, and f₀ is normalised to unit density.
+- **Formulation:** general Eqs. (A2), (A5): g₄ = 4πk_e(f₀″/5u⁴ − f₀′/5u⁵), g₅ = 4πk_e f₀′/3u³, g₆ = 4πk_e(u f₀″/5 + 2f₀′/15),
+  8πk_e f₀ in g₃, I₀ I₂ J₋₁ by quadrature. Drives: E → −½f₀′; ∇T → −u(3/2 f₀ + ½u f₀′), which assumes a self-similar
+  f₀ = n/v_T³ φ(v/v_T). The ∇n and E drives no longer combine, so σ is the pure-E response.
+- **Readouts (`appelbe_eedf`):**
+  - `ts_spectrum` gives S(w) = 2π∫_w f₀u du; `ts_temperature(op, w_max)` fits a Gaussian to it.
+  - `kinetic_temperature` = (2/3)⟨u²⟩.
+  - `slope_temperature` = −2u f₀/f₀′, the ECE readout for an optically thick plasma and a narrow resonance (not a
+    forward model). It is degenerate near u = 0, where it tends to 0 whenever f₀′(0) ≠ 0, so the scans report it on
+    1 ≤ u_L ≤ 4.
+- **Verified** (`test_electrons`, 30 checks):
+  - The general path with a Maxwellian converges to the closed forms at third order (2e-6 at 401 nodes).
+  - In the Lorentz gas, σ and K ratios equal ∫u⁵f₀ and ∫u⁹f₀ to 1e-6; a Maxwellian at 1.1 T_e gives 1.1^{3/2}.
+  - The bipolar f₀ matches its analytic form; tables reproduce the functions they sample.
+  - Onsager holds to 1e-7 for the Maxwellian.
+- **Results** (3.45 MeV α at 10 keV, n_α/n_e = 1e-3, 801 nodes):
+  - Reference case A = 0.1, u₀ = 2, w = 0.25:
+    - δf/f 6.70% (6.07% = A e^{-1/2} before renormalisation) and δf′/f′ 20.8%. The slides give 6.1% and 21.3%; their base
+      is Maxwell–Jüttner.
+    - T_TS +0.70% (w ≤ 2) and +0.08% (w ≤ 3); T_slope 0.894–1.253.
+    - σ +0.61%, κ −1.03%, j_ν +0.49%, ζ_ν +0.63% at ωτ = 0.
+  - Scans (A ±0.3, u₀ 0.5–4, w 0.1–1):
+    - The ECE readout spans 0.62–2.62; TS moves by at most 3%.
+    - Against the **equal-energy Maxwellian** (T = T_kin; σ ∝ T^{3/2} otherwise mixes in a temperature shift), σ changes
+      by ≤ 1%, κ by up to −6.7% (a genuine shape effect), j_ν by ≤ 2.9% and ζ_ν by ≤ 1.2%. At ωτ = 1, every change is
+      below 1.5%.
+- **Limits:**
+  - A prescribed non-Maxwellian f₀ is not a collisional equilibrium; the source that maintains it is not modelled.
+  - Onsager τ = μ − (3/2)σ breaks at first order in A (−1.8% at A = 0.1, w = 0.5). The isotropic α F₀ alone breaks it
+    by 1e-4.
+  - The model is non-relativistic.
+- **Open** (Luca is unavailable): which plasmas, what source/sink sets a steady distorted f₀ (needed for a kinetic l = 0
+  solver), the INDACO table format (u_L, f now; possibly relativistic p), whether a feature fixed in absolute energy
+  matters for ∇T.
 
 ## Reference
 

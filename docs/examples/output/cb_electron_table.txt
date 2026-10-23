@@ -1,0 +1,3 @@
+$ ./cb_electron_table
+table of 601 rows: T_TS =   1.0228,  T_kin =   1.0180
+sigma =   2.0167,  kappa =   3.4087

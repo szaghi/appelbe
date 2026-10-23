@@ -22,6 +22,7 @@ const docs = [
       { text: '5. Magnetic fields',              link: '/manual/tutorial/05-magnetic-field' },
       { text: '6. Energy spectra',               link: '/manual/tutorial/06-spectra' },
       { text: '7. The paper, number by number',  link: '/manual/tutorial/07-paper' },
+      { text: '8. Non-Maxwellian electrons',     link: '/manual/tutorial/08-electrons' },
     ],
   },
   {
@@ -38,6 +39,7 @@ const docs = [
       { text: 'Algebraic closure',   link: '/guide/algebraic-closure' },
       { text: 'Transport terms',     link: '/guide/transport' },
       { text: 'Energy spectra',      link: '/guide/distributions' },
+      { text: 'Non-Maxwellian electrons', link: '/guide/electrons' },
       { text: "The paper's set-up",  link: '/guide/paper-setup' },
       { text: 'Drivers and results', link: '/guide/drivers' },
       { text: 'Report pipeline',     link: '/guide/report' },

@@ -4,9 +4,10 @@ title: Tutorial
 
 # Tutorial
 
-Seven short chapters, each a complete program you can compile and run. They start from the conventional transport
+Eight short chapters, each a complete program you can compile and run. They start from the conventional transport
 coefficients, add a drifting fast-ion population, magnetise the plasma, form the heat flow and the magnetic-field
-terms, give the fast ions an energy spread, and end with the paper's own numerics.
+terms, give the fast ions an energy spread, go through the paper's own numerics, and end beyond the paper, with a
+non-Maxwellian electron $f_0$.
 
 | Chapter | You learn |
 |---------|-----------|
@@ -17,6 +18,7 @@ terms, give the fast ions an energy spread, and end with the paper's own numeric
 | [5. Magnetic fields](./tutorial/05-magnetic-field) | τ<sub>ei</sub>, lnΛ, advection (Eq. 40) and generation (Eq. 43) in SI units |
 | [6. Energy spectra](./tutorial/06-spectra) | fast ions with a Gaussian or slowing-down spectrum (footnote 30) |
 | [7. The paper, number by number](./tutorial/07-paper) | the paper's set-up, its grid, the drivers and the report |
+| [8. Non-Maxwellian electrons](./tutorial/08-electrons) | any electron f₀, what TS and ECE read, the effect on transport |
 
 ## Running the examples
 

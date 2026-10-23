@@ -24,6 +24,10 @@ Complex quantities are written as two columns, $\perp$ then $\wedge$. "Paper gri
 | `appelbe_fig6` | `fig6.dat` | n_α/n_e, K/K₀ and μ/μ₀ at 1, 5, 10 keV, then the same on the paper grid |
 | `appelbe_footnote30` | `footnote30.dat` | spectrum, u₀, u_energy, u_flux, ωτ, j and ζ of the spectrum and of the monoenergetic reference |
 | `appelbe_sec5` | `sec5.txt`, `sec5_advection.dat`, `sec5_carbon.dat`, `sec5_gradient.dat` | the advection and generation estimates of Sec. V |
+| `appelbe_electrons` | `electrons_profile.dat` | u, u_L, E/T_e, f₀ Maxwellian and bipolar, δf/f, δf′/f′, T_slope, TS spectra (reference case A = 0.1, u₀ = 2, w = 0.25) |
+| | `electrons_f1.dat` | u, f₁ of the E, ∇T and α drives, Maxwellian and bipolar (ωτ = 0); f₁ of the α drive ⊥ ∧ (ωτ = 1) |
+| | `electrons_scan_{A,u0,w}.dat` | parameter, T_TS (w ≤ 2, 3), T_kin, T_slope min max and max \|T_slope − T_TS\| on 1 ≤ u_L ≤ 4, monotone flag, changes of σ κ j ζ at ωτ = 0, 1, and against the Maxwellian at T_kin |
+| | `electrons_table_{profile,f1}.dat` | with a file argument, `appelbe_electrons f0.dat`: the same for a tabulated f₀ (readouts printed) |
 | `appelbe_validation` | `validation.dat` | key, value, reference: conventional coefficients, Lorentz limits, Onsager, convergence |
 | `appelbe_solvers` | `solvers.dat`, `convergence.dat` | the two solution methods against each other, grid convergence |
 

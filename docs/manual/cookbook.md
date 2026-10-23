@@ -83,6 +83,22 @@ The distribution may have any normalisation (it is normalised to unit density on
 `u_max`. It must be resolved by the grid: a feature narrower than a few cells needs more nodes. Check with a convergence
 run as above.
 
+### An electron f₀ from a table {#an-electron-f0-from-a-table}
+
+A distribution computed elsewhere, for example by INDACO, enters as a two-column table: $u_L = p/\sqrt{m_eT_e}$ and
+$f_0$, with any normalisation and `#` comments allowed. `read_table` reads it and `electron_table_params` packs it
+(a spline of $\ln f$) for `electron_table`:
+
+<<< @/examples/snippets/cb_electron_table-table.F90{fortran}
+
+<<< @/examples/output/cb_electron_table.txt{text}
+
+The table must start at $u_L = 0$, increase strictly and be positive. Beyond its last row $\ln f$ continues linearly,
+so the table must already decay there (`init` stops if $f_0$ does not vanish at `u_max`). Rows a few hundredths of
+$\sqrt{m_eT_e}$ apart resolve a Maxwellian to $10^{-9}$. The driver does the same from the command line:
+`./exe/appelbe_electrons f0.dat` writes `results/electrons_table_{profile,f1}.dat` and prints the TS and ECE readouts
+and the transport changes ([Non-Maxwellian electrons](/guide/electrons)).
+
 ## Closures for a fluid code
 
 ### From the closure to SI fields

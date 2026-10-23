@@ -24,6 +24,14 @@ module appelbe_kinetic
 !< Fast-ion population: monoenergetic by default (Eqs. 29-30, the I/J integrals of Eqs. A6-A7 in closed form), or any
 !< speed distribution F(u) passed to init (footnote 30), with F1 = gamma_a F0 of the same shape and the I/J integrals
 !< computed by quadrature on the grid. Either way the distribution is normalised to unit density.
+!<
+!< Electron f0: Maxwellian by default (Eq. 4, its I/J integrals in closed form), or any isotropic distribution passed to
+!< init. The operator then uses the general forms of Eqs. (A2) and (A5), with f0, df0/du and d2f0/du2 instead of their
+!< Maxwellian values (the Maxwellian reduction of those forms gives Eqs. A11-A13), and the drives become
+!<    electric field:        g7 = -(1/2) df0/du                      (u f0 for a Maxwellian)
+!<    temperature gradient:  g7 = -u (3/2 f0 + 1/2 u df0/du)         (u f0 (u^2 - 3/2) for a Maxwellian)
+!< the latter assuming that f0 keeps its shape in v/v_Te as T_e varies, f0 = n/v_Te^3 phi(v/v_Te). Speeds, times and
+!< coefficients are then in units of the reference temperature T_e that defines v_Te and tau_ei.
 use penf,                  only : I4P, R8P
 use appelbe_constants,     only : pi, sqrt_pi
 use appelbe_linear_solver, only : solve_dense
@@ -31,7 +39,7 @@ use appelbe_velocity_grid, only : velocity_grid
 
 implicit none
 private
-public :: kinetic_params, kinetic_operator, kinetic_response, speed_distribution
+public :: kinetic_params, kinetic_operator, kinetic_response, speed_distribution, maxwellian
 public :: method_complex, method_paper
 
 integer(I4P), parameter :: method_complex = 1_I4P  !< Solve (G + i omega tau) f1 = g7.
@@ -74,6 +82,10 @@ type :: kinetic_operator
    real(R8P), allocatable :: g(:,:)                  !< Reduced operator, (n-2) x (n-2).
    logical                :: monoenergetic = .true.  !< Delta-function population (closed-form I/J integrals).
    logical                :: aligned = .true.        !< A node sits on u_a (see init).
+   logical                :: maxwellian_f0 = .true.  !< Maxwellian electrons (closed-form I/J integrals of f0).
+   real(R8P), allocatable :: f0(:)                   !< Electron f0 on the grid, 4 pi int u^2 f0 du = 1.
+   real(R8P), allocatable :: df0(:)                  !< df0/du on the grid.
+   real(R8P), allocatable :: d2f0(:)                 !< d2f0/du2 on the grid.
    real(R8P), allocatable :: fast(:)                 !< Fast-ion distribution on the grid, 4 pi int u^2 F du = 1.
    real(R8P)              :: u_flux = 0._R8P         !< 4 pi int u^3 F du = 3 <v_a> / (gamma_a v_Te); u_a if monoenergetic.
    real(R8P)              :: u_energy = 0._R8P       !< sqrt(4 pi int u^4 F du): speed of the mean energy; u_a if monoenergetic.
@@ -89,6 +101,8 @@ type :: kinetic_operator
       procedure, pass(self) :: source_fast_flux !< g7 for a unit fast-ion flux.
       procedure, pass(self) :: fast_integrals   !< I/J integrals of the fast-ion distribution at one node.
       procedure, pass(self), private :: init_fast !< Sample and normalise the fast-ion distribution.
+      procedure, pass(self), private :: init_electrons !< Sample and normalise the electron f0 and its derivatives.
+      procedure, pass(self) :: electron_integrals !< I_0, I_2, J_-1 of the electron f0 at one node.
 endtype kinetic_operator
 
 abstract interface
@@ -128,11 +142,13 @@ contains
    endfunction resistivity
 
    ! kinetic_operator methods
-   subroutine init(self, par, n_nodes, u_max, distribution, shape_params, align)
+   subroutine init(self, par, n_nodes, u_max, distribution, shape_params, align, electrons, electron_params)
    !< Assemble the reduced operator G (Eqs. 13, A8-A13, B2) with the boundary conditions of Eqs. (B14)-(B15).
    !<
    !< Without distribution the fast ions are monoenergetic at par%u_a (Eqs. 29-30). With distribution, F(u) is sampled on
    !< the grid (it must vanish well before u_max) and par%u_a is only a reference speed (> 0) aligned with a node.
+   !<
+   !< With electrons, the electron f0 is that isotropic distribution instead of a Maxwellian (see the module header).
    !<
    !< align = .false. keeps the grid as given, so that u_a generally falls between two nodes: the Heaviside steps of the
    !< I/J integrals then jump between nodes and the moments carry an O(h) error that depends on where u_a falls in its
@@ -144,6 +160,8 @@ contains
    procedure(speed_distribution),             optional :: distribution !< Fast-ion speed distribution (footnote 30).
    real(R8P),                     intent(in), optional :: shape_params(:) !< Parameters passed to distribution.
    logical,                       intent(in), optional :: align        !< Align a node with u_a (default .true.).
+   procedure(speed_distribution),             optional :: electrons    !< Electron f0 (default: Maxwellian).
+   real(R8P),                     intent(in), optional :: electron_params(:) !< Parameters passed to electrons.
    integer(I4P)           :: n, j                   !< Nodes, counter.
    real(R8P)              :: ke, ka, ki, mr, u       !< Normalised collision strengths, mass ratio, speed.
    real(R8P)              :: ie0, ie2, je            !< I_0, I_2, J_-1 of f0.
@@ -168,6 +186,7 @@ contains
    allocate(self%g(n-2, n-2), row(n), self%fast(n), stat=ierr, errmsg=emsg)
    if (ierr /= 0_I4P) error stop 'kinetic_operator%init: '//trim(emsg)
    call self%init_fast(distribution, shape_params)
+   call self%init_electrons(electrons, electron_params)
 
    ki = 0.75_R8P * sqrt_pi
    ke = ki / par%z_i * par%lnl_ee_ratio
@@ -176,19 +195,18 @@ contains
 
    do j = 2_I4P, n - 1_I4P
       u   = self%grid%u(j)
-      ie0 = i0_maxwellian(u)
-      ie2 = i2_maxwellian(u)
-      je  = jm1_maxwellian(u)
+      call self%electron_integrals(j, ie0, ie2, je)
       fi = 0._R8P
       if (ka > 0._R8P) fi = self%fast_integrals(j)
       g1 = ke / (3._R8P * u) * (ie2 + je) + ka / (3._R8P * u) * (fi(2) + fi(3))
       g2 = ke / (3._R8P * u**2) * (3._R8P * ie0 - ie2 + 2._R8P * je) &
          + ka / (3._R8P * u**2) * (3._R8P * mr * fi(1) - fi(2) + 2._R8P * fi(3))
-      g3 = -ki / u**3 + 8._R8P * pi * ke * maxwellian(u) + ke / (3._R8P * u**3) * (-3._R8P * ie0 + ie2 - 2._R8P * je) &
+      g3 = -ki / u**3 + 8._R8P * pi * ke * self%f0(j) + ke / (3._R8P * u**3) * (-3._R8P * ie0 + ie2 - 2._R8P * je) &
          + 4._R8P * pi * ka * mr * self%fast(j) + ka / (3._R8P * u**3) * (-3._R8P * fi(1) + fi(2) - 2._R8P * fi(3))
-      g4 = 16._R8P * pi * ke / 5._R8P * maxwellian(u) / u**2
-      g5 = -8._R8P * pi * ke / 3._R8P * maxwellian(u) / u**2
-      g6 = 8._R8P * pi * ke / 5._R8P * (2._R8P * u**2 - 5._R8P / 3._R8P) * u * maxwellian(u)
+      ! the I_1, I_3, J_-2 terms of f1 in Eq. (A2), multiplying f0'' and f0' (Eqs. A11-A13 for a Maxwellian)
+      g4 = 4._R8P * pi * ke * (self%d2f0(j) / (5._R8P * u**4) - self%df0(j) / (5._R8P * u**5))
+      g5 = 4._R8P * pi * ke * self%df0(j) / (3._R8P * u**3)
+      g6 = 4._R8P * pi * ke * (u * self%d2f0(j) / 5._R8P + 2._R8P * self%df0(j) / 15._R8P)
 
       row = 0._R8P
       call self%grid%add_second_derivative(j=j, c=g1, row=row)
@@ -341,24 +359,25 @@ contains
    endfunction response
 
    pure function source_electric(self) result(s)
-   !< g7 for eps_E = 1: u f0, from the (2/v_Te^2) a term of Eq. (15).
+   !< g7 for eps_E = 1: -(1/2) df0/du, from the electric-field term of Eq. (15) (u f0 for a Maxwellian).
    class(kinetic_operator), intent(in) :: self           !< The operator.
    real(R8P)                           :: s(self%grid%n) !< Source on the full grid.
 
-   s = self%grid%u * maxwellian(self%grid%u)
+   s = -0.5_R8P * self%df0
    endfunction source_electric
 
    pure function source_thermal(self) result(s)
-   !< g7 for eps_T = 1: u f0 (u^2 - 3/2), from the grad(T_e) term of Eq. (15).
+   !< g7 for eps_T = 1: -u (3/2 f0 + 1/2 u df0/du), from the grad(T_e) term of Eq. (15) for f0 = n/v_Te^3 phi(v/v_Te)
+   !< (u f0 (u^2 - 3/2) for a Maxwellian).
    class(kinetic_operator), intent(in) :: self           !< The operator.
    real(R8P)                           :: s(self%grid%n) !< Source on the full grid.
 
-   s = self%grid%u * maxwellian(self%grid%u) * (self%grid%u**2 - 1.5_R8P)
+   s = -self%grid%u * (1.5_R8P * self%f0 + 0.5_R8P * self%grid%u * self%df0)
    endfunction source_thermal
 
    pure function source_fast_flux(self) result(s)
-   !< g7 for a unit fast-ion population: the F1 terms of Eq. (15) with F1 = F (Eq. 30 with gamma_a = 1, n_a / n_e = 1),
-   !< F the normalised fast-ion distribution (delta(u - u_a) / (4 pi u^2) if monoenergetic).
+   !< g7 for a unit fast-ion population: the F1 terms of Eq. (A5) with F1 = F (Eq. 30 with gamma_a = 1, n_a / n_e = 1),
+   !< F the normalised fast-ion distribution (delta(u - u_a) / (4 pi u^2) if monoenergetic), for any electron f0.
    class(kinetic_operator), intent(in) :: self           !< The operator.
    real(R8P)                           :: s(self%grid%n) !< Source on the full grid.
    real(R8P)                           :: ka, mr, u      !< Unit-population collision strength, mass ratio, speed.
@@ -371,9 +390,10 @@ contains
    do j = 2_I4P, self%grid%n - 1_I4P
       u  = self%grid%u(j)
       fi = self%fast_integrals(j)
-      s(j) = -ka * maxwellian(u) * (4._R8P * pi * mr * self%fast(j) + 0.8_R8P * u * fi(5)                             &
-                                    + 0.4_R8P * (2._R8P * u**2 - 10._R8P / 3._R8P + 5._R8P * mr / 3._R8P) * fi(6) / u &
-                                    - 2._R8P / 15._R8P * (-5._R8P + 10._R8P * mr) * fi(4) / u)
+      s(j) = -ka * (4._R8P * pi * mr * self%fast(j) * self%f0(j)                                             &
+                    + (fi(5) + fi(6)) / (5._R8P * u) * self%d2f0(j)                                          &
+                    + (-3._R8P * fi(5) + (7._R8P - 5._R8P * mr) * fi(6) + (-5._R8P + 10._R8P * mr) * fi(4)) &
+                      / (15._R8P * u**2) * self%df0(j))
    enddo
    endfunction source_fast_flux
 
@@ -438,6 +458,66 @@ contains
       self%u_energy = sqrt(sum(w * self%grid%u**4 * self%fast))
    endif
    endsubroutine init_fast
+
+   subroutine init_electrons(self, electrons, electron_params)
+   !< Sample the electron f0 on the grid, normalise it to unit density, and compute df0/du, d2f0/du2.
+   !<
+   !< Maxwellian: closed forms. Otherwise the derivatives come from five-point differences of the function itself (step
+   !< 1e-3, error ~1e-10), so f0 must be smooth and defined slightly beyond each node.
+   class(kinetic_operator),       intent(inout) :: self               !< The operator.
+   procedure(speed_distribution), optional      :: electrons          !< Electron f0.
+   real(R8P),           intent(in), optional    :: electron_params(:) !< Parameters passed to electrons.
+   real(R8P), parameter                         :: d = 1.e-3_R8P      !< Difference step.
+   real(R8P)                                    :: norm               !< Density of the sampled f0.
+   real(R8P)                                    :: fm2, fm1, fp1, fp2 !< f0 at u - 2d, u - d, u + d, u + 2d.
+   integer(I4P)                                 :: j                  !< Counter.
+
+   if (allocated(self%f0)) deallocate(self%f0, self%df0, self%d2f0)
+   allocate(self%f0(self%grid%n), self%df0(self%grid%n), self%d2f0(self%grid%n))
+   self%maxwellian_f0 = .not. present(electrons)
+   if (self%maxwellian_f0) then
+      self%f0   = maxwellian(self%grid%u)
+      self%df0  = -2._R8P * self%grid%u * self%f0
+      self%d2f0 = (4._R8P * self%grid%u**2 - 2._R8P) * self%f0
+      return
+   endif
+   if (.not. present(electron_params)) error stop 'kinetic: an electron distribution needs electron_params'
+   do j = 1_I4P, self%grid%n
+      associate(u => self%grid%u(j))
+         self%f0(j) = electrons(u, electron_params)
+         fm2 = electrons(u - 2._R8P * d, electron_params) ; fm1 = electrons(u - d, electron_params)
+         fp1 = electrons(u + d, electron_params)          ; fp2 = electrons(u + 2._R8P * d, electron_params)
+      endassociate
+      self%df0(j)  = (fm2 - 8._R8P * fm1 + 8._R8P * fp1 - fp2) / (12._R8P * d)
+      self%d2f0(j) = (-fm2 + 16._R8P * fm1 - 30._R8P * self%f0(j) + 16._R8P * fp1 - fp2) / (12._R8P * d**2)
+   enddo
+   if (self%f0(self%grid%n) > 1.e-12_R8P * maxval(self%f0)) &
+      error stop 'kinetic: electron distribution does not vanish at u_max, increase u_max'
+   norm = 4._R8P * pi * sum(self%grid%lower_weights(self%grid%n) * self%grid%u**2 * self%f0)
+   self%f0 = self%f0 / norm ; self%df0 = self%df0 / norm ; self%d2f0 = self%d2f0 / norm
+   endsubroutine init_electrons
+
+   pure subroutine electron_integrals(self, j, i0, i2, jm1)
+   !< I_0, I_2, J_-1 of the electron f0 at node j (Eqs. A3-A4): closed forms for a Maxwellian, quadrature otherwise.
+   class(kinetic_operator), intent(in)  :: self !< The operator.
+   integer(I4P),            intent(in)  :: j    !< Node, 2 <= j <= n-1.
+   real(R8P),               intent(out) :: i0   !< 4 pi int_0^u U^2 f0 dU.
+   real(R8P),               intent(out) :: i2   !< (4 pi / u^2) int_0^u U^4 f0 dU.
+   real(R8P),               intent(out) :: jm1  !< 4 pi u int_u^inf U f0 dU.
+   real(R8P)                            :: low(self%grid%n), up(self%grid%n) !< Weights times 4 pi f0.
+   real(R8P)                            :: u    !< Speed.
+
+   u = self%grid%u(j)
+   if (self%maxwellian_f0) then
+      i0 = i0_maxwellian(u) ; i2 = i2_maxwellian(u) ; jm1 = jm1_maxwellian(u)
+   else
+      low = 4._R8P * pi * self%grid%lower_weights(j) * self%f0
+      up  = 4._R8P * pi * self%grid%upper_weights(j) * self%f0
+      i0  = sum(low * self%grid%u**2)
+      i2  = sum(low * self%grid%u**4) / u**2
+      jm1 = u * sum(up * self%grid%u)
+   endif
+   endsubroutine electron_integrals
 
    ! private helpers
    elemental function maxwellian(u) result(f)

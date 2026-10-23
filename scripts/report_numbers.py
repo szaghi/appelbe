@@ -665,6 +665,44 @@ def footnote30(macros: Macros) -> None:
     macros["FootWorstModerate"] = fix(worst_moderate, 1)
 
 
+def electrons(macros: Macros) -> None:
+    """Non-Maxwellian electron f0 (appelbe_electrons): the reference distortion and the largest changes of the scans.
+
+    Parameters
+    ----------
+    macros : Macros
+        Macro dictionary, updated.
+    """
+    prof = load(RESULTS / "electrons_profile.dat")
+    window = (prof[:, 1] >= 1.0) & (prof[:, 1] <= 4.0)
+    macros["ElPeakF"] = fix(100.0 * float(np.abs(prof[window, 5]).max()), 2)
+    macros["ElPeakDf"] = fix(100.0 * float(np.abs(prof[window, 6]).max()), 1)
+    macros["ElSlopeMin"] = fix(float(prof[window, 7].min()), 3)
+    macros["ElSlopeMax"] = fix(float(prof[window, 7].max()), 3)
+    scans = {name: load(RESULTS / f"electrons_scan_{name}.dat") for name in ("A", "u0", "w")}
+    ref = scans["w"][np.argmin(np.abs(scans["w"][:, 0] - 0.25))]
+    macros["ElTsTwo"] = fix(100.0 * (ref[1] - 1.0), 2)
+    macros["ElTsThree"] = fix(100.0 * (ref[2] - 1.0), 2)
+    macros["ElTkin"] = fix(100.0 * (ref[3] - 1.0), 2)
+    for col, name in ((8, "Sigma"), (9, "Kappa"), (10, "J"), (11, "Zeta")):
+        macros[f"ElRef{name}"] = fix(100.0 * ref[col], 2)
+    every = np.vstack(list(scans.values()))
+    macros["ElTsMax"] = fix(100.0 * float(np.abs(every[:, 1] - 1.0).max()), 1)
+    macros["ElSlopeMinAll"] = fix(float(every[:, 4].min()), 2)
+    macros["ElSlopeMaxAll"] = fix(float(every[:, 5].max()), 2)
+    macros["ElWtOneMax"] = fix(100.0 * float(np.abs(every[:, 12:16]).max()), 1)
+    rows = []
+    labels = {"A": "$A$", "u0": "$u_0$", "w": "$w$"}
+    for col, name in ((8, "$\\sigma$"), (9, "$\\kappa$"), (10, "$j^\\nu$"), (11, "$\\zeta^\\nu$")):
+        cells = [name]
+        for key, data in scans.items():
+            for offset in (0, 8):
+                i = int(np.argmax(np.abs(data[:, col + offset])))
+                cells.append(f"${100.0 * data[i, col + offset]:+.1f}$ ({labels[key]} $= {data[i, 0]:g}$)")
+        rows.append(" & ".join(cells))
+    table("tab_electrons.tex", rows)
+
+
 def nrl(macros: Macros) -> None:
     """NRL Coulomb logarithms: lambda_ei - lambda_ee for T_e > 10 Z^2 eV.
 
@@ -791,6 +829,7 @@ def main() -> None:
     fig5_rows = fig5(macros)
     interpolation(macros)
     footnote30(macros)
+    electrons(macros)
     nrl(macros)
     summary(macros, fig1_rows, fig5_rows)
     # \ensuremath instead of $...$ so that the macros work both in text and inside math

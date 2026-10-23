@@ -55,4 +55,4 @@ The paper's set-up as code, the drivers, the report. Reference: [The paper's set
 [Drivers and results](/guide/drivers), [Reproduction status](/guide/validation).
 :::
 
-That is the tutorial. For tasks, see the [cookbook](../cookbook).
+Next: [8. Non-Maxwellian electrons](./08-electrons).

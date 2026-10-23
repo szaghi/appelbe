@@ -5,7 +5,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 for f in validation.dat solvers.dat convergence.dat fig1.dat fig1_paper.dat fig2.dat fig2_samples.dat fig3_summary.dat \
          fig3_paper_v0.050.dat fig4.dat fig5_Te01keV.dat fig6.dat footnote30.dat sec5_advection.dat \
-         sec5_carbon.dat sec5_gradient.dat; do
+         sec5_carbon.dat sec5_gradient.dat electrons_profile.dat electrons_scan_A.dat electrons_scan_u0.dat \
+         electrons_scan_w.dat; do
   [[ -f "results/$f" ]] || { echo "results/$f missing: run 'fobis rule --ex figures' first" >&2; exit 1; }
 done
 python3 scripts/report_numbers.py

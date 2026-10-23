@@ -4,7 +4,7 @@ title: Reproduction status
 
 # Reproduction status
 
-Measured on 2026-10-23 with gfortran 16.2. `fobis rule --ex tests` runs 120 checks, all passing in `gnu` and
+Measured on 2026-10-23 with gfortran 16.2. `fobis rule --ex tests` runs 150 checks, all passing in `gnu` and
 `gnu-debug` (bounds, NaN initialisation, FP traps). The full comparison is in `report/appelbe_report.pdf`.
 
 ## Verification of the solver
@@ -18,6 +18,8 @@ Measured on 2026-10-23 with gfortran 16.2. `fobis rule --ex tests` runs 120 chec
 | Onsager $\tau = \mu - \tfrac32\sigma$ | violated by ≤ $5\times10^{-8}$ | exact |
 | Grid convergence, conventional coefficients | $10^{-7}$ at 401 nodes | — |
 | Grid convergence, fast-ion moments | second order, $2\times10^{-4}$ at 401 nodes | — |
+| General-f₀ path with a Maxwellian | third order, $2\times10^{-6}$ at 401 nodes | closed forms (A8)–(A13) |
+| Lorentz gas, non-Maxwellian f₀ | σ, K ratios to $10^{-6}$ | $\int u^5 f_0$, $\int u^9 f_0$ ([Non-Maxwellian electrons](electrons#verification)) |
 | Complex vs paper solver | $10^{-9}$ (401 nodes), $10^{-7}$ (1601) | — |
 
 ## Every curve of the paper

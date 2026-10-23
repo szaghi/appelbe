@@ -1,0 +1,9 @@
+$ ./tut08_electrons
+TS fit (w <= 2, w <= 3)      :   1.0070  1.0008
+energy moment (2/3)<u^2>     :   1.0062
+ECE slope temperature, range :   0.8939  1.2527
+
+relative change against the Maxwellian, omega tau = 0:
+   sigma   0.0061   kappa    -0.0103
+   j_nu    0.0049   zeta_nu   0.0063
+Onsager tau / (mu - 3/2 sigma) - 1:  -0.0055

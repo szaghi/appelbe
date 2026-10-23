@@ -817,6 +817,90 @@ Quantity & Sec./Eq. & Paper & This work\\\midrule
 \end{enumerate}
 
 %=======================================================================================================================
+\section{Beyond the paper: a non-Maxwellian electron $f_0$}\label{sec:electrons}
+The paper assumes a Maxwellian $f_0$ (its Eq.~(4)), but Shkarofsky's operators of its Eqs.~(A2) and (A5) hold for any
+isotropic $f_0$. Without the Maxwellian substitution of Eqs.~(A8)--(A13) the coefficients become $g_4 = 4\pi k_e(f_0''/5u^4
+- f_0'/5u^5)$, $g_5 = 4\pi k_e f_0'/3u^3$, $g_6 = 4\pi k_e(uf_0''/5 + 2f_0'/15)$, plus the $8\pi k_e f_0$ term of $g_3$ and
+the moments $I_0$, $I_2$, $J_{-1}$ of $f_0$ in $g_1$--$g_3$, computed by quadrature. The drives become
+$g_7^E=-\tfrac12 f_0'$ and $g_7^T=-u(\tfrac32f_0+\tfrac12uf_0')$, the latter for a self-similar
+$f_0=n\,v_T^{-3}\varphi(v/v_T)$, and the fast-ion source keeps $f_0'$ and $f_0''$. The solver accepts any smooth $f_0(u)$,
+analytic or tabulated. Its first application is the ECE/Thomson-scattering (TS) temperature discrepancy of Senni
+\emph{et al.}~\cite{senni2026}. TS reads $f_0$ through its projection on the scattering vector; optically thick ECE reads
+the local log-slope $T(u)=-2uf_0/f_0'$.
+
+\emph{Verification} (\texttt{test\_electrons}, 30 checks):
+\begin{itemize}
+   \item a Maxwellian through the general path converges to the closed forms at third order ($2\times10^{-6}$ at 401
+         nodes);
+   \item in the Lorentz gas, where $f_1=-u^3g_7/k_i$ is local, the ratios $\sigma/\sigma_M=\int u^5f_0/\int u^5f_M$ and
+         $K/K_M=\int u^9f_0/\int u^9f_M$ hold to $10^{-6}$, and a Maxwellian at $1.1\,T_e$ gives $1.1^{3/2}$;
+   \item tabulated distributions reproduce the functions they sample.
+\end{itemize}
+
+\Cref{fig:electrons} shows the bipolar distortion of the slides, $f_0=f_M[1+A\,x\,e^{-x^2/2}]$ with
+$x=(u_L-u_0)/w$, $u_L=p/\sqrt{m_eT_e}=\sqrt2\,u$, $A=0.1$, $u_0=2$, $w=0.25$. It serves as the background for 3.45\,MeV
+$\alpha$ particles at 10\,keV. $f_0$ changes by at most $\ElPeakF\%$ and $f_0'$ by $\ElPeakDf\%$ (the slides give 6.1\% and
+21.3\%; the difference is the density renormalisation and the slides' Maxwell--J\"uttner base). The TS temperature moves by
+$\ElTsTwo\%$ for a fit on $w\le2$ and by $\ElTsThree\%$ on $w\le3$; $\tfrac23\langle u^2\rangle$ moves by $\ElTkin\%$. The
+ECE slope temperature spans $\ElSlopeMin$--$\ElSlopeMax$ on $1\le u_L\le4$. Against the Maxwellian at $T_e$, the
+coefficients change by $\ElRefSigma\%$ ($\sigma$), $\ElRefKappa\%$ ($\kappa$), $\ElRefJ\%$ ($j^\nu$) and $\ElRefZeta\%$
+($\zeta^\nu$) at $\ot=0$.
+
+The scans in $A\in[-0.3,0.3]$, $u_0\in[0.5,4]$ and $w\in[0.1,1]$ (\cref{tab:electrons}) move the ECE readout between
+$\ElSlopeMinAll$ and $\ElSlopeMaxAll$, and TS by at most $\ElTsMax\%$. The coefficients are compared with two baselines.
+The Maxwellian at $T_e$ mixes a temperature shift into the comparison: a broad distortion raises
+$\tfrac23\langle u^2\rangle$ by up to 3\%, and $\sigma\propto T^{3/2}$ in normalised units. The Maxwellian of equal energy
+isolates the effect of the shape. Against it, $\sigma$ changes by at most 1\%, while $\kappa$ keeps a genuine shape effect
+of up to $-6.7\%$. At $\ot=1$ every change is below $\ElWtOneMax\%$.
+
+Two limits apply to all of this. First, a prescribed non-Maxwellian $f_0$ is not a collisional equilibrium, so it needs
+a source that is not modelled. Second, Onsager's $\tau=\mu-\tfrac32\sigma$, exact to $10^{-7}$ about the Maxwellian,
+fails at first order in $A$ ($-1.8\%$ at $A=0.1$, $w=0.5$). The density-gradient and electric drives no longer combine
+into $\mathbf E+\nabla P_e/(en_e)$.
+
+\begin{figure}[htb]\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.6cm}, width=0.48\textwidth, height=0.36\textwidth]
+\nextgroupplot[xmin=0, xmax=4, ymin=-0.25, ymax=0.3, xlabel={$u_L=p/\sqrt{m_eT_e}$},
+               ylabel={deviation from the Maxwellian}, legend pos=north west, legend style={font=\scriptsize}]
+\addplot[kin, blue] table[x index=1, y index=5] {\R/electrons_profile.dat}; \addlegendentry{$f_0/f_M-1$}
+\addplot[kin, red] table[x index=1, y index=6] {\R/electrons_profile.dat}; \addlegendentry{$f_0'/f_M'-1$}
+\addplot[kin, dashed, black] table[x index=1, y expr=\thisrowno{7}-1] {\R/electrons_profile.dat};
+\addlegendentry{$T_{\mathrm{slope}}/T_e-1$}
+\nextgroupplot[xmin=0.1, xmax=1, ymin=-0.08, ymax=0.06, xlabel={$w$}, ylabel={relative change, $\ot=0$},
+               legend pos=south west, legend style={font=\scriptsize}, legend columns=2]
+\addplot[kin, blue] table[x index=0, y index=8] {\R/electrons_scan_w.dat}; \addlegendentry{$\sigma$}
+\addplot[kin, red] table[x index=0, y index=9] {\R/electrons_scan_w.dat}; \addlegendentry{$\kappa$}
+\addplot[kin, green!50!black] table[x index=0, y index=10] {\R/electrons_scan_w.dat}; \addlegendentry{$j^\nu$}
+\addplot[kin, magenta] table[x index=0, y index=11] {\R/electrons_scan_w.dat}; \addlegendentry{$\zeta^\nu$}
+\addplot[kin, dashed, blue, forget plot] table[x index=0, y index=16] {\R/electrons_scan_w.dat};
+\addplot[kin, dashed, red, forget plot] table[x index=0, y index=17] {\R/electrons_scan_w.dat};
+\addplot[kin, dashed, green!50!black, forget plot] table[x index=0, y index=18] {\R/electrons_scan_w.dat};
+\addplot[kin, dashed, magenta, forget plot] table[x index=0, y index=19] {\R/electrons_scan_w.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Non-Maxwellian electrons. Left: the bipolar distortion $A=0.1$, $u_0=2$, $w=0.25$ (the $0.6\%$ offset is the
+density renormalisation). Right: the change of the coefficients and of the $\alpha$ closure against the width $w$
+($A=0.1$, $u_0=2$). Solid lines are against the Maxwellian at $T_e$, dashed lines against the Maxwellian of equal energy.}
+\label{fig:electrons}
+\end{figure}
+
+\begin{table}[htb]\centering\small
+\caption{Largest relative change (\%) at $\ot=0$ over each one-parameter scan around $A=0.1$, $u_0=2$, $w=0.25$, and
+where it occurs. For each scan, the first column is against the Maxwellian at $T_e$ and the second against the
+Maxwellian of equal energy.}
+\label{tab:electrons}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{2}{c}{$A\in[-0.3,0.3]$} & \multicolumn{2}{c}{$u_0\in[0.5,4]$} & \multicolumn{2}{c}{$w\in[0.1,1]$} \\
+ & $T_e$ & equal energy & $T_e$ & equal energy & $T_e$ & equal energy \\
+\midrule
+\inputtable{generated/tab_electrons.tex}
+\bottomrule
+\end{tabular}
+\end{table}
+
+%=======================================================================================================================
 \section{Conclusions}\label{sec:conclusions}
 \begin{itemize}
    \item All six figures, the four tables and the quoted numbers of Secs.~III C--VI of Appelbe \emph{et al.} are
@@ -839,6 +923,9 @@ Quantity & Sec./Eq. & Paper & This work\\\midrule
          replace the Appendix~C closure.
    \item The order-of-magnitude estimates of Sec.~V should not be used as benchmarks. Species other than $\alpha$ in DT
          require the kinetic solver.
+   \item Beyond the paper, the solver accepts any electron $f_0$ (\cref{sec:electrons}). For the bipolar distortions
+         of the ECE/TS study, the ECE readout moves by tens of per cent and TS by a few. At equal energy, $\kappa$
+         changes by up to $7\%$, while $\sigma$ and the $\alpha$ closure change by about $1$--$3\%$.
 \end{itemize}
 
 \appendix
@@ -869,5 +956,8 @@ The paper's set-up is in \texttt{src/lib/appelbe\_paper.F90}.
    (Addison-Wesley, 1966).
 \bibitem{braginskii} S.~I.~Braginskii, \emph{Transport processes in a plasma}, Rev.\ Plasma Phys.\ \textbf{1}, 205 (1965).
 \bibitem{nrl} A.~S.~Richardson, \emph{2019 NRL Plasma Formulary} (Naval Research Laboratory, 2019).
+\bibitem{senni2026} L.~Senni, F.~P.~Orsitto, G.~Giruzzi, \emph{ECE and Thomson scattering and their relation with the
+   electron energy distribution function}, talk at the 8th International Conference on Frontiers in Diagnostic
+   Technologies (ICFDT8), Frascati (2026).
 \end{thebibliography}
 \end{document}

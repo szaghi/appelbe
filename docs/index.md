@@ -40,7 +40,7 @@ features:
     linkText: Magnetised plasma
   - icon: ✅
     title: Verified
-    details: Epperlein–Haines coefficients to four digits, the exact Lorentz limits, Onsager symmetry to 5e-8, second-order grid convergence; 120 checks in every build mode.
+    details: Epperlein–Haines coefficients to four digits, the exact Lorentz limits, Onsager symmetry to 5e-8, second-order grid convergence; 150 checks in every build mode.
     link: /guide/validation
     linkText: Verification
   - icon: 🔍
@@ -58,6 +58,11 @@ features:
     details: Gaussian, flat and slowing-down α populations, or your own; the paper's footnote 30 tested and bounded.
     link: /manual/tutorial/06-spectra
     linkText: Energy spectra
+  - icon: 📡
+    title: Non-Maxwellian electrons
+    details: Any electron f₀, analytic or tabulated, in the collision operator and the drives, with what Thomson scattering and ECE read from it. For the ECE/TS temperature discrepancy.
+    link: /guide/electrons
+    linkText: Beyond the paper
   - icon: 🪶
     title: Simple by design
     details: Fortran 2018, dense matrices, no LAPACK, one dependency (PENF). One FoBiS build; the full reproduction runs in four minutes on a laptop.
@@ -87,7 +92,7 @@ other force vanishes. Lines are this code; circles are the paper's Fig. 1, read 
 fobis fetch                      # PENF, the only dependency
 fobis build --mode static-gnu    # lib/libappelbe.a and lib/mod/*.mod: use appelbe
 fobis build --mode gnu           # every driver and test into exe/
-fobis rule --ex tests            # 120 checks
+fobis rule --ex tests            # 150 checks
 fobis rule --ex figures          # reproduce the paper: results/*.dat
 ```
 

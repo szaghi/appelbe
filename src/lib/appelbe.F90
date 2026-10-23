@@ -7,7 +7,10 @@ use penf,                  only : I4P, R8P
 use appelbe_closure,       only : heat_flow_thermoelectric, heat_flow_direct, advection_velocity, field_generation_rate
 use appelbe_constants,     only : pi, sqrt_pi, e_charge, m_e, eps0, amu, keV_J, MeV_J, &
                                   m_proton, m_alpha, m_carbon12, m_DT
-use appelbe_distributions, only : energy_gaussian, energy_flat, slowing_down
+use appelbe_distributions, only : energy_gaussian, energy_flat, slowing_down, electron_maxwellian, electron_bipolar, &
+                                  electron_table, electron_table_params
+use appelbe_eedf,          only : slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
+use appelbe_io,            only : read_table
 use appelbe_fits,          only : n_nodes, v_nodes, fit_response, fit_node_response, fit_zero_column
 use appelbe_kinetic,       only : kinetic_params, kinetic_operator, kinetic_response, speed_distribution, &
                                   method_complex, method_paper
@@ -24,8 +27,13 @@ public :: I4P, R8P
 public :: pi, sqrt_pi, e_charge, m_e, eps0, amu, keV_J, MeV_J, m_proton, m_alpha, m_carbon12, m_DT
 ! kinetic solver (Eq. 13, Appendix B)
 public :: kinetic_params, kinetic_operator, kinetic_response, speed_distribution, method_complex, method_paper
-! fast-ion energy spectra (footnote 30)
-public :: energy_gaussian, energy_flat, slowing_down
+! fast-ion energy spectra (footnote 30) and electron distributions
+public :: energy_gaussian, energy_flat, slowing_down, electron_maxwellian, electron_bipolar, &
+                                  electron_table, electron_table_params
+! tabulated input (two columns, '#' comments)
+public :: read_table
+! what Thomson scattering and ECE read from the electron f0
+public :: slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
 ! algebraic closure (Appendix C)
 public :: n_nodes, v_nodes, fit_response, fit_node_response, fit_zero_column
 ! transport terms (Secs. IV-V) and plasma helpers

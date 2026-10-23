@@ -98,3 +98,31 @@ plot R.'fig6.dat' u 1:2 w l lw 2 lc rgb '#1f4fd8' t 'K_{||}, 1 keV', \
      D.'paper_fig6_K_5keV.dat' every 10 u 1:2 w p @paper lc rgb '#d81f1f' notitle, \
      D.'paper_fig6_K_10keV.dat' every 10 u 1:2 w p @paper lc rgb 'black' notitle
 unset logscale x
+
+# Non-Maxwellian electrons (appelbe_electrons): the reference distortion A = 0.1, u_0 = 2, w = 0.25
+set output 'docs/public/figures/electrons_profile.svg'
+set xrange [0:4] ; set yrange [-0.25:0.3] ; set key top right
+set xlabel 'u_L = p / (m_e T_e)^{1/2}' ; set ylabel 'relative deviation from the Maxwellian'
+plot R.'electrons_profile.dat' u 2:6 w l lw 2 lc rgb '#1f4fd8' t 'f_0 / f_M - 1  (Thomson scattering)', \
+     R.'electrons_profile.dat' u 2:7 w l lw 2 lc rgb '#d81f1f' t "f_0' / f_M' - 1  (ECE absorption)", \
+     R.'electrons_profile.dat' u 2:($8-1) w l lw 2 dt 2 lc rgb 'black' t 'T_{slope} / T_e - 1'
+
+# width scan (A = 0.1, u_0 = 2): readouts, and the change of transport against the equal-energy Maxwellian
+set output 'docs/public/figures/electrons_readouts.svg'
+set xrange [0.1:1] ; set yrange [0.7:2.1] ; set key top right
+set xlabel 'w' ; set ylabel 'T / T_e'
+plot R.'electrons_scan_w.dat' u 1:2 w lp pt 7 ps 0.5 lw 2 lc rgb '#1f4fd8' t 'T_{TS}, fit on w <= 2', \
+     R.'electrons_scan_w.dat' u 1:4 w l lw 2 dt 2 lc rgb '#1f4fd8' t 'T_{kin} = (2/3)<u^2>', \
+     R.'electrons_scan_w.dat' u 1:5 w lp pt 7 ps 0.5 lw 2 lc rgb '#d81f1f' t 'T_{slope}, min and max on 1 <= u_L <= 4', \
+     R.'electrons_scan_w.dat' u 1:6 w lp pt 7 ps 0.5 lw 2 lc rgb '#d81f1f' notitle
+set output 'docs/public/figures/electrons_transport.svg'
+set yrange [-0.08:0.06] ; set key bottom left
+set ylabel 'relative change, {/Symbol w}{/Symbol t} = 0'
+plot R.'electrons_scan_w.dat' u 1:9  w l lw 2 lc rgb '#1f4fd8' t '{/Symbol s}', \
+     R.'electrons_scan_w.dat' u 1:10 w l lw 2 lc rgb '#d81f1f' t '{/Symbol k}', \
+     R.'electrons_scan_w.dat' u 1:11 w l lw 2 lc rgb '#1f8a3a' t 'j_{/Symbol n}', \
+     R.'electrons_scan_w.dat' u 1:12 w l lw 2 lc rgb '#c41ec4' t '{/Symbol z}_{/Symbol n}', \
+     R.'electrons_scan_w.dat' u 1:17 w l lw 2 dt 2 lc rgb '#1f4fd8' t 'dashed: against the Maxwellian at T_{kin}', \
+     R.'electrons_scan_w.dat' u 1:18 w l lw 2 dt 2 lc rgb '#d81f1f' notitle, \
+     R.'electrons_scan_w.dat' u 1:19 w l lw 2 dt 2 lc rgb '#1f8a3a' notitle, \
+     R.'electrons_scan_w.dat' u 1:20 w l lw 2 dt 2 lc rgb '#c41ec4' notitle

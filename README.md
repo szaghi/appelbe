@@ -41,7 +41,7 @@ git clone https://github.com/szaghi/appelbe && cd appelbe
 fobis fetch                   # PENF into src/third_party/
 fobis build --mode gnu        # every program under src/ into exe/
 fobis build --mode static-gnu # the library alone: lib/libappelbe.a, use appelbe
-fobis rule --ex tests         # verification suite (120 checks)
+fobis rule --ex tests         # verification suite (150 checks)
 fobis rule --ex figures       # all drivers -> results/*.dat + gnuplot previews results/*.png
 fobis rule --ex report        # report/generated/*.tex + report/appelbe_report.pdf
 ```
