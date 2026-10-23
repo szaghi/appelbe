@@ -1,7 +1,7 @@
 # appelbe
 
 >#### Electron transport modified by collisions with fast ions
-> A KISS Fortran 2018 reproduction of Appelbe *et al.*, *Phys. Plasmas* **26**, 102704 (2019), Secs. IV–VI: the simple-algebraic closure, the kinetic Fokker–Planck solver behind it, and a LaTeX report comparing every result with the paper.
+> A KISS Fortran 2018 reproduction of Appelbe *et al.*, *Phys. Plasmas* **26**, 102704 (2019), Secs. III C–VI: the simple-algebraic closure, the kinetic Fokker–Planck solver behind it, and a LaTeX report comparing every result with the paper.
 
 [![GitHub tag](https://img.shields.io/github/v/tag/szaghi/appelbe)](https://github.com/szaghi/appelbe/tags)
 [![GitHub issues](https://img.shields.io/github/issues/szaghi/appelbe)](https://github.com/szaghi/appelbe/issues)
@@ -9,7 +9,7 @@
 
 | 🧮 **Simple-algebraic closure**<br>Appendix C fits of the collisionally induced current `j⁰_eα` and heat flow `ζ_eα` (α in DT) | ⚛️ **Kinetic solver**<br>Linearised electron `f₁` equation (Eq. 13) with e–e, e–i and e–fast-ion Fokker–Planck operators | 🔀 **Two solution methods**<br>The paper's Appendix B procedure (`GG + Ω²`) and an equivalent complex form `(G + iωτ) f₁ = g₇` | ✅ **Verified**<br>Epperlein–Haines Z=1 coefficients to 4 digits, exact Lorentz limits, Onsager symmetry to 5e-8 |
 |:---:|:---:|:---:|:---:|
-| 📊 **Secs. IV–VI reproduced**<br>Heat flow (Figs. 4–5), field advection/generation (Sec. V), isotropic-population effect (Fig. 6) | 🔍 **Direct comparison**<br>Paper figures digitized and overlaid; every number quoted in the text checked | 📄 **Self-updating report**<br>LaTeX/pgfplots PDF built from the last run's results — no hand-copied numbers | ⚡ **KISS**<br>Dense matrices, no LAPACK, one dependency (PENF) — full run in about a minute |
+| 📊 **Secs. III C–VI reproduced**<br>All six figures, Tables I–IV, footnote 30, field advection/generation (Sec. V) | 🔍 **Direct comparison**<br>Paper curves extracted from its vector graphics (≈1e-4 of the axis span) and compared point by point | 📄 **Self-updating report**<br>LaTeX/pgfplots PDF built from the last run's results — no hand-copied numbers | ⚡ **KISS**<br>Dense matrices, no LAPACK, one dependency (PENF) — full run in about four minutes |
 
 For the full results, methods and discussion see the **[reproduction report](report/appelbe_report.pdf)**.
 
@@ -38,7 +38,7 @@ The reference paper is **not** distributed: `references/` is git-ignored because
 git clone https://github.com/szaghi/appelbe && cd appelbe
 fobis fetch                   # PENF into src/third_party/
 fobis build --mode gnu        # every program under src/ into exe/
-fobis rule --ex tests         # verification suite (109 checks)
+fobis rule --ex tests         # verification suite (120 checks)
 fobis rule --ex figures       # all drivers -> results/*.dat + gnuplot previews results/*.png
 fobis rule --ex report        # report/generated/*.tex + report/appelbe_report.pdf
 ```
@@ -61,8 +61,10 @@ fobis rule --ls               # list the rules (tests, figures, report)
 
 | Paper | Content | Driver | Route |
 |-------|---------|--------|-------|
-| Fig. 2 (Sec. III C) | unmagnetised `j⁰_eα / j⁰_α` for p, α, C⁶⁺ | `appelbe_fig2` | kinetic |
-| Fig. 3 (App. C) | kinetic solution vs the algebraic fits, `-3 ≤ log₁₀ωτ ≤ 3` | `appelbe_fig3` | both |
+| Fig. 1 (Sec. III C) | electron `f₁` from e–α collisions, unmagnetised and `ωτ = 10` | `appelbe_fig1` | kinetic |
+| Fig. 2 (Sec. III C) | unmagnetised `j⁰_eα / j⁰_α` for p, α, C⁶⁺ (dense, and at the paper's 25 samples) | `appelbe_fig2` | kinetic |
+| Fig. 3, Tables I–IV | `j_ν`, `ζ_ν` vs `ωτ` at the paper's legend speeds and at the six table nodes, vs fits | `appelbe_fig3` | both |
+| Footnote 30 | broad energy spectra vs a monoenergetic population at the mean energy | `appelbe_footnote30` | kinetic |
 | **Fig. 4** (Sec. IV A) | heat flow, unmagnetised, 3.45 MeV α, vs `T_e` | `appelbe_fig4` | both |
 | **Fig. 5** (Sec. IV B) | heat flow vs `ωτ`, flux ⊥ **B**, 1 and 15 keV | `appelbe_fig5` | both |
 | **Sec. V A** | field advection velocity `j⁰_eα / (e n_e)` | `appelbe_sec5` | both |
@@ -73,14 +75,24 @@ fobis rule --ls               # list the rules (tests, figures, report)
 
 ## Results at a glance
 
-Deviation from the digitized paper curves (max over the curve, % of its peak; digitization resolution ≈ 0.5%):
+The paper does not state several choices behind its figures; the comparison reconstructs them (the *paper's set-up*,
+`src/lib/appelbe_paper.F90`): an isotropic α population with `n_α/n_e = 10⁻³` kept in the collision operator, a coarse
+speed grid (`u ∈ [0, 5]`, 199 nodes) with no node at `v_α`, the speed 1/3 printed as 0.33, and the Epperlein–Haines
+*fitted* `β` in Fig. 5. Emulating them, **every curve of the paper is reproduced to ≤ 1.6% of its peak** (curves
+extracted from the paper's vector graphics, accuracy ≈ 1e-4 of the axis span); max deviation, % of peak:
 
-| Figure | Kinetic closure | Algebraic closure |
-|--------|-----------------|-------------------|
-| Fig. 4, components | ≤ 0.8% | ≤ 2.6% |
-| Fig. 5, along the flux | 2–4% | 2–6% |
-| Fig. 5, orthogonal | minimum within 4% (15 keV) / 14% (1 keV) | similar |
-| Fig. 6, all six curves | ≤ 0.2% | — (not covered by the fits) |
+| Figure | Converged (this work) | Paper's numerics emulated | Algebraic closure |
+|--------|-----------------------|---------------------------|-------------------|
+| Fig. 1, `f₁⊥` at `ωτ = 10` | 18 (lobe depth) | 1.6 | — |
+| Fig. 2, at the paper's samples | ≤ 0.044 abs. (C) | ≤ 0.006 abs. | — |
+| Fig. 3 | ≤ 0.015 abs. (`j_ν`) | ≤ 0.0024 abs. | fits miss the figure by ≤ 0.009 |
+| Fig. 4 | ≤ 0.57 | ≤ 0.46 | ≤ 3.1 |
+| Fig. 5 (E&H `β`), 1 keV / 15 keV | 5.1 / 0.28 | 0.83 / 0.08 | 22 / 3.2 |
+| Fig. 6 | ≤ 0.02 | ≤ 0.04 | — |
+
+The converged solution is the physical one; the large converged deviations are the paper's discretisation error. The
+algebraic closure's 22% at 1 keV is its node spacing (`j_ν` has a minimum between the nodes 1 and 0.5), not a paper
+discrepancy.
 
 Verification of the kinetic solver (no fast ions, `N = 401`):
 
@@ -95,8 +107,18 @@ Verification of the kinetic solver (no fast ions, `N = 401`):
 ### Findings about the paper
 
 - **Eqs. (B6)–(B7)** print `(G ± Ω) g₇`: the right-hand sides that follow from Eq. (B5) are `G g₇ₓ + Ω g₇ᵧ` and `G g₇ᵧ − Ω g₇ₓ`.
-- **Fig. 2 contradicts Table I** at `v_α/v_Te = 0.5` (−1.34 vs −1.39); the kinetic solver gives −1.385.
-- **Fig. 5 is consistent with a kinetic computation**, not with node-wise use of the paper's own fits (1 keV plateau: paper 6.15, kinetic 6.02, fits 6.45 ×10⁻¹⁶ W s keV⁻¹).
+- **The fast-ion runs keep `n_α/n_e = 10⁻³`** in the operator, not the `n_α ≪ n_e` limit of Sec. III: with it Fig. 2
+  matches for p, α and C at once (carbon RMS 0.21 → 0.01).
+- **Fig. 2 is a polyline through 25 temperatures**: it has no sample between `v_α/v_Te = 0.44` and 1, misses the
+  minimum of the α curve there, and only appears to contradict Table I.
+- **Fig. 5 uses the Epperlein–Haines fitted `β`** (their Table III), whose `β⊥` form is wrong at small `ωτ` (Sadler
+  2021, Davies 2021) and puts `q∧` off by 18–29%; with it the figure is reproduced to 0.3% at 15 keV.
+- **The paper's speed grid is coarse and unaligned** (h = 5/198, no node at `v_α`): its O(h) error makes Fig. 1's
+  negative lobe 10% deeper and shifts Fig. 2 by up to 0.04 (carbon); "0.33" in Fig. 3 and Table I is 1/3.
+- **Footnote 30** (broad spectra act as monoenergetic to 1%) holds for moderate spreads at `v_α/v_Te ≤ 0.5`, fails at
+  `v_α/v_Te = 1` and for the slowing-down distribution (4–5%).
+- **NRL Coulomb logarithms give `lnΛ_ee = lnΛ_ei`**, so the unit ratios of the solver are the paper's too.
+- **Fig. 5 is consistent with a kinetic computation**, not with node-wise use of the paper's own fits (1 keV plateau: paper 6.15, kinetic 6.04, fits 6.43 ×10⁻¹⁶ W s keV⁻¹).
 - **Sec. V estimates run high**: the α-flux current (6×10¹⁵ A m⁻²) exceeds its own bound (≤ 4.8×10¹⁵); the carbon-beam rate applies `j⁰_eα ≈ −5 j⁰_α` where `v_α/v_Te = 2–3` and the ratio has collapsed to −0.05…−1.7.
 - **Weak spot of the algebraic closure**: between the table nodes `v_α/v_Te = 1` and `0.5` (T_e ≈ 0.5–1.9 keV for 3.45 MeV α) it is 7% high on the `q⊥` plateau and 25% shallow at the `q∧` minimum.
 
@@ -109,6 +131,8 @@ src/lib/                       library (one module per file)
 ├── appelbe_velocity_grid.F90  uniform speed grid, 5-point stencils, Simpson weights (Eqs. B11-B19)
 ├── appelbe_linear_solver.F90  dense Gaussian elimination, real and complex
 ├── appelbe_kinetic.F90        operator G (Eqs. A8-A13), sources g₇ (Eq. 15), both solvers, moments
+├── appelbe_distributions.F90  fast-ion energy spectra (Gaussian, flat, slowing-down) for footnote 30
+├── appelbe_paper.F90          the paper's set-up, inferred from its figures
 ├── appelbe_fits.F90           Appendix C tables and rational fits (Eqs. C1-C8)
 ├── appelbe_closure.F90        heat flows (Eqs. 33-35), advection (40), field generation (43)
 └── appelbe_io.F90             results/ tables
@@ -116,7 +140,7 @@ src/app/                       one driver per figure/section (appelbe_*)
 src/tests/                     test programs (test_*) + assertion helper
 scripts/                       run_tests.sh, make_figures.sh, make_report.sh,
                                digitize_paper.py, report_numbers.py, *.gp
-report/                        appelbe_report.tex, data/ (digitized paper curves)
+report/                        appelbe_report.tex, data/ (curves extracted from the paper and Davies 2021)
 ```
 
 ### Kinetic solver
@@ -127,6 +151,7 @@ report/                        appelbe_report.tex, data/ (digitized paper curves
 | Grid | uniform, `N = 401` nodes on `[0, ≈7]`, stretched so a node sits exactly on `u_α` |
 | Discretisation | 5-point finite differences, Simpson integrals, `f₁(u₁) = f₁(u₂)`, `f₁(u_N) = 0` (Appendix B) |
 | Drives | electric field, temperature gradient, unit fast-ion flux — three right-hand sides, one solve |
+| Fast ions | monoenergetic (closed-form I/J integrals), or any speed distribution `F(u)` passed to `init` (quadrature) |
 | Magnetisation | `f₁ = f₁ₓ + i f₁ᵧ`: real part ⊥ (along drive), imaginary part ∧ (along **b**×drive), as Eq. (27) |
 
 The two methods are selected per call:
@@ -167,9 +192,11 @@ call fit_response(v_ratio=0.5_R8P, omega_tau=1._R8P, j_nu=j_nu, zeta_nu=zeta_nu)
 `fobis rule --ex report` regenerates `report/appelbe_report.pdf` from the current `results/`:
 
 1. `scripts/report_numbers.py` writes `report/generated/` — number macros and table bodies;
-2. `latexmk` (forced to pdflatex) compiles `report/appelbe_report.tex`, whose pgfplots figures read `results/*.dat` and `report/data/paper_*.dat` directly.
+2. `latexmk` (forced to pdflatex) compiles `report/appelbe_report.tex`, whose pgfplots figures read `results/*.dat` and `report/data/*.dat` directly.
 
-The digitized curves are refreshed only when needed, with the paper available in `references/`:
+The extracted curves are refreshed only when needed, with the source documents in `references/` (git-ignored): the
+paper (`appelbe-2019.pdf`) and the OSTI accepted manuscript of Davies *et al.*, Phys. Plasmas 28 (2021), whose
+Epperlein–Haines curve cross-checks our transcription of E&H 1986 Table III (`davies-2021.pdf`). Both are vector PDFs read with `mutool trace`:
 
 ```bash
 python3 scripts/digitize_paper.py
@@ -183,7 +210,7 @@ python3 scripts/digitize_paper.py
 | [FoBiS.py](https://github.com/szaghi/FoBiS) ≥ 3.8 | build, dependency fetch, rules |
 | [PENF](https://github.com/szaghi/PENF) | kind parameters (fetched automatically) |
 | gnuplot (pngcairo) | preview plots |
-| Python 3 + NumPy | report numbers; digitizer (+ Pillow, poppler `pdftoppm`) |
+| Python 3 + NumPy | report numbers; curve extraction (+ `mutool` from MuPDF) |
 | TeX Live (pdflatex, pgfplots, latexmk) | report |
 
 ## Reference

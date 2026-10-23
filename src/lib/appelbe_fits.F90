@@ -17,7 +17,8 @@ private
 public :: n_nodes, v_nodes, fit_response, fit_node_response, fit_zero_column
 
 integer(I4P), parameter :: n_nodes = 6_I4P !< Number of tabulated v_a/v_Te values.
-real(R8P),    parameter :: v_nodes(n_nodes) = [1._R8P, 0.5_R8P, 0.33_R8P, 0.25_R8P, 0.1_R8P, 0.025_R8P] !< v_a/v_Te nodes.
+! the node printed as 0.33 is 1/3: the paper's kinetic data match 1/3, not 0.33 (Fig. 3 and the omega tau = 0 column)
+real(R8P),    parameter :: v_nodes(n_nodes) = [1._R8P, 0.5_R8P, 1._R8P / 3._R8P, 0.25_R8P, 0.1_R8P, 0.025_R8P] !< Nodes.
 
 ! Each table column is one row of the paper's table: (omega tau = 0 value, numerator coefficients, denominator coefficients).
 real(R8P), parameter :: table_j_perp(9, n_nodes) = reshape([                                             & !< Table I (C5).

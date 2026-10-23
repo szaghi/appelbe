@@ -11,8 +11,8 @@ to `~/fortran/adam`, specifically:
 - **FLUME** (MHD): the consumer of the new Ohm's-law, induction and heat-flow terms.
 - **PRISM** (with PIC): a natural source of the fast-ion flux `n_α⟨v_α⟩` as a particle moment.
 
-The current code is a **fast, simple reproduction of Secs. IV–VI**. The goals are simplicity and
-maintainability, not performance: dense matrices, no parallelism, no LAPACK. When wiring into adam, read
+The current code is a **fast, simple reproduction of Secs. III C–VI** (all six figures, Tables I–IV, footnote 30).
+The goals are simplicity and maintainability, not performance: dense matrices, no parallelism, no LAPACK. When wiring into adam, read
 `~/fortran/adam/CLAUDE.md` first. It defines the realm and component architecture, and it forbids new
 `*_global` singletons.
 
@@ -25,7 +25,7 @@ fobis build --mode gnu-debug      # -fcheck=all, FP traps (invalid, zero, overfl
 fobis rule --ex tests             # scripts/run_tests.sh: runs every exe/test_*, stops on first failure
 fobis rule --ex figures           # scripts/make_figures.sh: every exe/appelbe_* -> results/, then gnuplot previews
 fobis rule --ex report            # scripts/make_report.sh: report/generated/*.tex + report/appelbe_report.pdf
-python3 scripts/digitize_paper.py # refresh report/data/paper_*.dat from the paper PDF (needs references/)
+python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PDFs in references/ (needs mutool)
 ./exe/test_fits                   # run one test program directly
 ./exe/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
 ```
@@ -33,11 +33,15 @@ python3 scripts/digitize_paper.py # refresh report/data/paper_*.dat from the pap
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
 - The fobos rules call bash scripts, because fobis rules do not run through a shell (a `for` loop inside a
   rule fails).
-- The full figure run takes about a minute; `appelbe_solvers` (sweep up to 1601 nodes) is most of it.
+- The full figure run takes about four minutes (`appelbe_fig3`, `appelbe_solvers`, `appelbe_footnote30` dominate).
 - LAPACK is not used on purpose. Only the `liblapack.so.3` runtime is installed (no `-dev` symlink), and the
   self-contained elimination in `appelbe_linear_solver.F90` is fast enough.
 - Plots: gnuplot for previews (`results/*.png`); the report uses pgfplots reading `results/*.dat` directly.
-  The system matplotlib is broken (NumPy 1/2 ABI mismatch); NumPy and PIL themselves work (digitizer).
+  The system matplotlib **and SciPy** are broken (NumPy 1/2 ABI mismatch); NumPy itself works (the report script has
+  its own cubic spline).
+- Curve extraction (`digitize_paper.py`) reads the paper's figures as **vector graphics** (`mutool trace`): curves are
+  filled stroke outlines, reduced to centre lines; axes are calibrated from the tick marks (residual <= 1.1e-4 of the
+  span). Accuracy checked on Fig. 1's dotted `f0 = exp(-u^2)`: bias 1e-5, scatter 2e-4 of the span. No raster step.
 - `make_report.sh` forces pdflatex with `-e '$pdflatex=...'`: the user's `~/.latexmkrc` maps `$pdflatex` to
   xelatex. Do not edit the user's rc.
 - The Python scripts follow the user's Ruff conventions (`ruff check scripts` must pass).
@@ -67,13 +71,20 @@ The rest of the library and tooling:
 
 - `appelbe_closure.F90` turns a closure into physics: the heat flows of Eqs. (33)–(35), advection (40)
   and generation (43). `appelbe_plasma.F90` holds τ_ei (Eq. 14), NRL lnΛ, and the Eq. (43) coefficient.
-- Drivers `src/app/appelbe_*.F90` write `results/*.dat` (one `#` header line): `fig2` to `fig6`, `sec5`
+- `appelbe_paper.F90` holds **the paper's set-up, inferred from its figures**: `paper_n_ratio = 1e-3`, its speed grid
+  (`init_paper`: u in [0, 5], 199 nodes, no node at u_a), the 25 samples of Fig. 2, the Fig. 3 speeds (1, 1/3, 0.2,
+  0.05). `appelbe_distributions.F90` holds energy spectra (Gaussian, flat, slowing-down) for footnote 30.
+- Drivers `src/app/appelbe_*.F90` write `results/*.dat` (one `#` header line). Figure drivers write the converged
+  solution and the same on the paper's grid ("paper's numerics"): `fig1` (+ `fig1_paper`), `fig2` (dense +
+  `fig2_samples`: n_a/n_e = 0, 1e-3, paper grid), `fig3` (table nodes vs fits + `fig3_paper_v*` at the legend speeds),
+  `fig4`, `fig5` (j, zeta, beta converged, fitted and on the paper grid), `fig6`, `footnote30`, `sec5`
   (`sec5.txt` plus `sec5_{advection,carbon,gradient}.dat`), `validation`, `solvers` (+ `convergence.dat`).
-  Figs. 2 and 3 are outside Secs. IV–VI: Fig. 2 underpins Sec. V B and Fig. 3 validates route 1.
-- Report pipeline: `scripts/digitize_paper.py` → `report/data/paper_<fig>_<curve>.dat` (committed; derived
-  from the git-ignored PDF). `scripts/report_numbers.py` → `report/generated/` (macros and table bodies,
-  git-ignored). `report/appelbe_report.tex` reads `../results/`, `data/` and `generated/`, so every number in
-  the PDF comes from the last run. Table bodies are pulled in with `\inputtable` (the `\@@input`
+- Report pipeline: `scripts/digitize_paper.py` → `report/data/paper_<fig>_<curve>.dat` and
+  `report/data/davies2021_fig4a_EH_beta_new.dat` (committed; derived from the git-ignored PDFs
+  `references/appelbe-2019.pdf` and `references/davies-2021.pdf`, the OSTI accepted manuscript of Davies et al., Phys.
+  Plasmas 28 (2021), doi:10.1063/5.0023445). `scripts/report_numbers.py` → `report/generated/` (macros, table
+  bodies and `fig5_{eh,paper,fit}_*.dat`, git-ignored). `report/appelbe_report.tex` reads `../results/`, `data/` and
+  `generated/`, so every number in the PDF comes from the last run. Table bodies are pulled in with `\inputtable` (the `\@@input`
   primitive): LaTeX's robust `\input` breaks a following `\bottomrule`. Number macros use `\ensuremath`.
 
 Kinetic-solver design points that are not obvious from any single file:
@@ -84,8 +95,14 @@ Kinetic-solver design points that are not obvious from any single file:
 - **One solve, three right-hand sides:** `response(ωτ)` solves the E drive, the ∇T drive, and a
   **unit** fast-ion flux (n_α/n_e = 1, γ_α = 1, allowed because the response is linear). It returns σ, μ,
   τ, K in Epperlein–Haines units, plus `j_nu` and `zeta_nu` in Appendix C normalization.
-- `kinetic_params%n_ratio` controls **only** the isotropic F₀ inside the operator (Sec. VI). Flux runs
-  keep it at 0, which is the paper's n_α ≪ n_e assumption.
+- `kinetic_params%n_ratio` controls **only** the isotropic F₀ inside the operator (Sec. VI). The paper's own
+  fast-ion runs used **1e-3** (`paper_n_ratio`; drivers of Figs. 1–5 use it). Sec. V estimates use 0, the n_α ≪ n_e
+  limit the paper states.
+- **Distributed fast ions** (footnote 30): `op%init(..., distribution=f, shape_params=p)` with `f` of the
+  `speed_distribution` interface (pure, explicit parameter array: no host association, so no gfortran trampoline /
+  executable stack). F₁ has the shape of F₀; I/J integrals by the grid quadrature; responses are normalised by
+  `op%u_flux` = 4π∫u³F du, and `op%u_energy` = sqrt(4π∫u⁴F du) is the mean-energy speed. Converges to the δ result as
+  σ². Spectra must be resolved by the grid (logistic edges of 0.1 E₀, not 0.03, at u ≈ 0.25 and 801 nodes).
 - **Boundary conditions:** the operator is assembled row by row on the full grid, then reduced. `f(1) = f(2)`
   folds column 1 into column 2 and `f(n) = 0` drops column n.
 - **Node alignment at u_a (essential):** `init` stretches u_max by < half a cell so a node sits exactly on
@@ -93,35 +110,68 @@ Kinetic-solver design points that are not obvious from any single file:
   carry an erratic O(h) error stuck at ~3e-3; without the tolerance, rounding makes the step randomly 0/1 at
   the aligned node (2% jumps at v_a/v_Te = 0.6–0.7; regression checks in `test_fast_ions`). With both, the
   moments converge at second order (~2e-4 at 401 nodes). The δ functions of F₀, F₁ are unit-area hats;
-  `u_a ≥ 4h` is enforced, so the `v_a/v_Te = 0.025` table row cannot run on the default grid.
-- **Coulomb logarithms:** all ratios default to 1 (`lnl_ee_ratio = lnl_ea_ratio = 1`). The paper used NRL
-  values with unstated ratios. This is the most likely source of the 1–2% residual against its tables.
+  `u_a ≥ 4h` is enforced (0.5h with `align=.false.`), so the `v_a/v_Te = 0.025` table row cannot run on the default grid (`appelbe_fig3` uses
+  1001 nodes with u_max = 5 for it, 701 nodes for 0.05; u_max = 5 changes j, ζ by < 1e-8).
+- **`init(..., align=.false.)`** keeps the grid as given (no node on u_a): Heaviside steps jump between nodes and the
+  moments carry an O(h) error that depends on where u_a sits in its cell. It exists only to emulate the paper
+  (`init_paper`); never use it for physics.
+- **Coulomb logarithms:** all ratios default to 1 (`lnl_ee_ratio = lnl_ea_ratio = 1`). This **is** the paper's
+  choice: the NRL formulary (2019, Richardson) gives λ_ee = λ_ei to ~1e-5 for T_e ≫ e² eV, and λ_eα takes the e–i
+  form (v_α < v_Te). An earlier note blaming the ratios for the residual against the tables was wrong.
 
 ## Validation status
 
-Measured on 2026-09-30. `fobis rule --ex tests` runs 109 checks, and all pass in both modes. The full
-comparison is in `report/appelbe_report.pdf`; the key results:
+Measured on 2026-10-23. `fobis rule --ex tests` runs 120 checks, and all pass in both modes (`gnu-debug` traps FP
+overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). The full comparison is in
+`report/appelbe_report.pdf`; the key results:
 
 - **Conventional coefficients, Z = 1:** α∥ = 0.5061, β∥ = 0.7029, κ∥ = 3.2031, the Epperlein–Haines (1986)
   values (α∥ matches Eq. 42). Lorentz limits exact (3π/32, 3/2, 128/3π). Onsager τ = μ − (3/2)σ holds to
   5e-8 over ωτ = 0–1e3. Converged 401 vs 1601 nodes to 1e-7.
-- **Kinetic vs Appendix C (Fig. 3):** max |Δj| ≤ 0.017 and |Δζ| ≤ 0.11 (about 1% of the ranges). The ∧ sign
-  convention is **pinned**: with Eq. (27), j∧ < 0 and ζ∧ > 0, as in the tables.
-- **Direct comparison with digitized paper curves** (max deviation, % of curve max): Fig. 4 ≤ 0.8%
-  (components), Fig. 5 q⊥ 2–4%, Fig. 6 ≤ 0.2% (all six curves; the earlier "1 keV is 3% low" note came from
-  misreading a low-resolution render and was wrong). Fig. 5 q∧: minima within 4% (15 keV) and 14% (1 keV),
-  flanks shifted ~0.1 decade in ωτ, possibly because the paper used E&H *fitted* β⊥, β∧.
-- **Paper internal inconsistency:** Fig. 2 (α) gives −1.337 at v_a/v_Te = 0.5, its own Table I gives −1.39;
-  the kinetic solver gives −1.385. Our α curve has a converged minimum ≈ −1.50 near v_a/v_Te = 0.8, where the
-  paper's Fig. 2 rises monotonically.
-- **Paper's Fig. 5 was computed kinetically, not from its fits:** at 1 keV its low-ωτ plateau is 6.15e-16,
-  our kinetic value 6.02e-16, the interpolated fits 6.45e-16.
-- **Algebraic closure weak spot:** between the nodes v_a/v_Te = 1 and 0.5 (T_e ≈ 0.5–1.9 keV for 3.45 MeV α)
-  it is 7% high on the q⊥ plateau and 25% shallow at the q∧ minimum (1 keV), relative to the kinetic
-  solution. For FLUME, regenerate a denser table with the kinetic solver or fit in 2-D.
-- **Sec. V:**
-  - Advection: |u_adv| is (2–3)×10⁴ m/s, and the ⊥ component reverses sign across ωτ ≈ 1. The paper
-    says "up to 10⁴" (half its own 2(n_α/n_e)⟨v_α⟩ estimate).
+- **The paper's set-up, reconstructed** (each finding tested on several figures; see report Sec. 5):
+  - its fast-ion runs keep an isotropic F₀ with **n_α/n_e = 1e-3** in the operator. Evidence: Fig. 2 for p, α, C
+    at once (the per-unit-Z shortfall at v=0.1 scales as Z², carbon RMS 0.21 → 0.010), Fig. 3 (5–10× better),
+    Fig. 4 (2–3× better); 5e-4 and 2e-3 fit clearly worse;
+  - **Fig. 2 is a polyline through 25 temperatures** equally spaced in T_e (v = 1/sqrt(1+99(k−1)/24)); no sample
+    between 0.44 and 1. Our α minimum ≈ −1.50 at v ≈ 0.77 falls in that gap, and the "Fig. 2 vs Table I at 0.5"
+    disagreement is the chord: our own polyline through the samples gives −1.337 (paper Fig. 2 −1.340), our exact
+    value −1.378 (Table I −1.39). **Not an inconsistency of the paper.**
+  - **its speed grid: u in [0, 5], 199 nodes (h = 5/198), no node at u_a** (`init_paper`). Found from Fig. 1: its data
+    points are spaced 0.0253 (the paper plots at its nodes), and the depth of the f₁⊥ lobe, an O(h) artefact of the
+    unaligned grid, pins h to 0.02525–0.0253 (−1.13 at 0.02505, −1.29 at 0.02545; paper −1.224). With nothing else
+    adjusted, the same grid removes the residuals elsewhere: Fig. 2 max 0.044 → 0.006 (C), 0.016 → 0.003 (α), the
+    alternating ± pattern at v = 0.274/0.329 vanishes; Fig. 3 at v = 1 0.015 → 0.0024 (j); Fig. 5 1 keV q∧ 5.1% → 0.8%.
+    (An earlier "effective speed shift" fit was this effect, approximated.) u_max = 10, N = 397 is equivalent;
+  - **the speed printed 0.33 is 1/3** (Fig. 3 legend and Table I–IV node): on the paper grid j matches to 5e-4 at 1/3,
+    3e-3 at 0.335, 7e-3 at 0.33; Table I ωτ=0 −1.21 vs −1.208 (1/3) / −1.202 (0.33). `v_nodes(3) = 1/3` in the fits;
+  - **Fig. 5 used the Epperlein–Haines fitted β** (both components). With E&H 1986 Table III, Z = 1
+    (`references/epperlein-haines-1986.pdf`, a scan; coefficients in `scripts/report_numbers.py`: β⊥ form
+    (β'₁χ+β'₀)/(χ³+b'₂χ²+b'₁χ+b'₀)^(8/9) = (6.33, 1.05e3; 5.15e2, 4.11e3, 3.71e3), β∧ form
+    χ(β''₁χ+β''₀)/(χ³+b''₂χ²+b''₁χ+b''₀) = (1.5, 2.54; 7.09, 3.27, 2.87)), the β inferred from the paper's 15 keV
+    q⊥, q∧ (with the paper's closure on its grid) equals the fit in both components to ±0.001 at every ωτ. Our exact β⊥ differs by up to 0.06 for
+    0.04 ≲ ωτ ≲ 1 (fit defect: (β⊥(0) − β⊥)/ωτ → 0.690 instead of 0; Sadler 2021, Davies 2021), β∧ by ≤ 0.009. The
+    Davies et al. 2021 Fig. 4(a) E&H curve agrees with our transcription to 0.002 (kept as a cross-check).
+- **Direct comparison, max deviation in % of each curve's peak** (report Table 16; "paper's numerics" = paper grid +
+  n_α/n_e = 1e-3 + E&H β for Fig. 5): **every curve ≤ 1.6%** — Fig. 1 0.26/1.56/0.26, Fig. 4 ≤ 0.46, Fig. 5 0.19/0.83
+  (1 keV) and 0.01/0.08 (15 keV), Fig. 6 ≤ 0.04; Figs. 2–3 ≤ 0.006 / 0.015 absolute. Converged (our physics) the large
+  ones are Fig. 1 f₁⊥ 18% (paper grid) and Fig. 5 q∧ 18–29% with exact β (paper's E&H β). **No residual is unexplained.**
+- **The Appendix C fits miss the paper's own Fig. 3** by up to 0.009 (j) and 0.07 (ζ, at ωτ → 0: the fit's 0.5%
+  endpoint error); this, not the solver, is the residual of our kinetic solution against Tables I–IV (incl. the 0.025
+  row, solved with 1001 nodes, u_max = 5).
+- **Footnote 30** (broad spectra ≈ monoenergetic at the mean energy to 1%): holds for v ≤ 0.5 and spreads up to
+  σ_E/Ē = 0.4 or ±60% (≤ 0.7%); fails at v = 1 (4–5%, the j_ν minimum near 0.8) and for the slowing-down
+  distribution (up to 4.5% in j, 5.5% in ζ). Grid-converged to 1e-5 at 801 nodes.
+- **Fig. 5 was computed kinetically, not from its fits:** at 1 keV its low-ωτ plateau is 6.15e-16, our kinetic value
+  6.04e-16, the interpolated fits 6.43e-16.
+- **Algebraic closure weak spot:** between the nodes v_α/v_Te = 1 and 0.5 (T_e ≈ 0.5–1.9 keV for 3.45 MeV α); at
+  1 keV (v = 0.688) Fig. 5 is missed by 5.8% (q⊥) and 22% (q∧) even with the paper's E&H β. It is the node spacing,
+  not the fits: interpolating *exact* kinetic node values gives 5.3%/24%, since j_ν at 0.688 (−1.465 at ωτ → 0) lies
+  outside the node values (−1.420, −1.393): its minimum is between the nodes. For FLUME,
+  regenerate a denser table with the kinetic solver (at the n_α/n_e actually present, integrating over broad
+  spectra) and use exact or Davies/Sadler-corrected β, not the E&H fits.
+- **Sec. V** (n_α/n_e = 0, the paper's stated limit):
+  - Advection: |u_adv| is (2–3)×10⁴ m/s, and the ⊥ component reverses sign across ωτ ≈ 1. The paper says "up to
+    10⁴" (half its own 2(n_α/n_e)⟨v_α⟩ estimate).
   - Scenario C: j⁰_eα = −(3.6–4.8)×10¹⁵ A/m² (the paper's 6×10¹⁵ exceeds the bound Z_α e flux·max|j_ν|),
     and dB/dt·T_keV^{5/2} is (2–3.5)×10¹³ (the paper says 6×10¹³).
   - Scenario B (carbon beam): at 1–2 keV the beam has v_a/v_Te = 2–3, beyond Fig. 2. There
@@ -130,8 +180,8 @@ comparison is in `report/appelbe_report.pdf`; the key results:
 
 ## Reference
 
-`references/appelbe-2019.pdf` is git-ignored (`references/*`) because it is publisher-copyrighted. Never
-force-add it.
+`references/appelbe-2019.pdf`, `references/davies-2021.pdf` and `references/epperlein-haines-1986.pdf` are git-ignored (`references/*`) because they are
+copyrighted. Never force-add them.
 
 > B. Appelbe, M. Sherlock, O. El-Amiri, C. Walsh, J. Chittenden, *Modification of classical electron
 > transport due to collisions between electrons and fast ions*, Phys. Plasmas **26**, 102704 (2019),
@@ -317,8 +367,9 @@ point, 2 keV, gives 0.486.
 4. **Species other than α in DT**: the fits do not apply. The only algebraic information is Eq. (32)
    (unmagnetized, `v_α/v_Te → 0`) and Fig. 2. *Implemented*: use the kinetic solver (see Sec. V B carbon).
 5. **Conventional coefficients**: *implemented* by computing them with the same kinetic solver (with no
-   fast ions), which reproduces Epperlein & Haines exactly for Z = 1. For FLUME, use a fit of the same
-   E&H data, so that the closure and the background transport are consistent.
+   fast ions), which reproduces Epperlein & Haines exactly for Z = 1. For FLUME, do **not** use the E&H *fits* for
+   β⊥: their form is wrong at small ωτ ((β⊥(0) − β⊥)/ωτ → 0.690 instead of 0; Sadler 2021, Davies 2021), which is what
+   distorts the paper's Fig. 5 q∧. Use the kinetic values (tabulated) or the Davies/Sadler fits.
 
 ### Paper errata and quirks
 
@@ -328,7 +379,11 @@ point, 2 keV, gives 0.486.
   Treat its `6×10¹³ T_keV^{-5/2} T s⁻¹` estimate as order-of-magnitude only; it also implies lnΛ ≈ 4.
 - Eqs. (B6)–(B7) print "(G ± Ω) g₇ₓ,ᵧ". The right-hand sides that follow from Eq. (B5) are G g₇ₓ + Ω g₇ᵧ and
   G g₇ᵧ − Ω g₇ₓ (implemented in `solve_paper`).
-- Fig. 2 contradicts Table I at v_α/v_Te = 0.5 (−1.34 against −1.39); the kinetic solver sides with Table I.
+- Fig. 2 *appears* to contradict Table I at v_α/v_Te = 0.5 (−1.34 against −1.39): it is a polyline through 25
+  samples (none between 0.44 and 1), and the chord explains the difference. Not an erratum.
+- Undocumented set-up: fast-ion runs with n_α/n_e = 1e-3 in the operator; Fig. 5 with the E&H fitted β; δ-function
+  coarse unaligned speed grid (O(h) errors up to 10% in Fig. 1's lobe); "0.33" is 1/3. See Validation status.
+- Footnote 30 holds only for moderate spreads at v_α/v_Te ≤ 0.5.
 - The "anchors" below are the paper's own estimates. Several are measured high (see Validation status and
   `report/appelbe_report.pdf`), so never use them as benchmarks.
 

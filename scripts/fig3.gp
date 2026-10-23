@@ -6,8 +6,8 @@ set multiplot layout 2,1
 set xlabel 'log_{10} {/Symbol w}{/Symbol t}'
 set xrange [-3:3]
 set key top left
-files = 'fig3_v1.000.dat fig3_v0.330.dat fig3_v0.100.dat'
-labels = '1 0.33 0.1'
+files = 'fig3_v1.000.dat fig3_v0.333.dat fig3_v0.100.dat'
+labels = '1 1/3 0.1'
 set ylabel "j^0_{e{/Symbol a}} / j^0_{/Symbol a}"
 plot for [i=1:3] 'results/'.word(files,i) u 1:2 w l lw 2 lc i t 'v_{/Symbol a}/v_{Te} = '.word(labels,i), \
      for [i=1:3] 'results/'.word(files,i) u 1:3 w l lw 2 dt 2 lc i notitle, \

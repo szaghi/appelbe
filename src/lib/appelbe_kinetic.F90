@@ -20,6 +20,10 @@ module appelbe_kinetic
 !< - method_complex (default): one complex solve of (G + i omega tau) f1 = g7.
 !< - method_paper: the paper's Appendix B procedure, i.e. the real systems of Eqs. (B6)-(B7) built on the squared operator
 !<   GG + Omega^2 (GG by matrix multiplication), and Eq. (B8) G f1 = g7 for omega tau = 0 (parallel direction).
+!<
+!< Fast-ion population: monoenergetic by default (Eqs. 29-30, the I/J integrals of Eqs. A6-A7 in closed form), or any
+!< speed distribution F(u) passed to init (footnote 30), with F1 = gamma_a F0 of the same shape and the I/J integrals
+!< computed by quadrature on the grid. Either way the distribution is normalised to unit density.
 use penf,                  only : I4P, R8P
 use appelbe_constants,     only : pi, sqrt_pi
 use appelbe_linear_solver, only : solve_dense
@@ -27,7 +31,7 @@ use appelbe_velocity_grid, only : velocity_grid
 
 implicit none
 private
-public :: kinetic_params, kinetic_operator, kinetic_response
+public :: kinetic_params, kinetic_operator, kinetic_response, speed_distribution
 public :: method_complex, method_paper
 
 integer(I4P), parameter :: method_complex = 1_I4P  !< Solve (G + i omega tau) f1 = g7.
@@ -40,7 +44,7 @@ type :: kinetic_params
    real(R8P) :: z_i          = 1._R8P !< Thermal ion charge state.
    real(R8P) :: z_a          = 2._R8P !< Fast-ion charge state.
    real(R8P) :: mass_ratio   = 0._R8P !< m_e / m_a.
-   real(R8P) :: u_a          = 0._R8P !< Fast-ion speed v_a / v_Te; 0 disables the fast-ion drive.
+   real(R8P) :: u_a          = 0._R8P !< Fast-ion speed v_a / v_Te (aligned with a node); 0 disables the fast ions.
    real(R8P) :: n_ratio      = 0._R8P !< n_a / n_e of the isotropic component F0 kept in the operator (Sec. VI).
    real(R8P) :: lnl_ee_ratio = 1._R8P !< lnL_ee / lnL_ei.
    real(R8P) :: lnl_ea_ratio = 1._R8P !< lnL_ea / lnL_ei.
@@ -65,9 +69,14 @@ endtype kinetic_response
 
 type :: kinetic_operator
    !< Discretised collision operator G of Eq. (B2), reduced to the unknowns f1(2..n-1).
-   type(velocity_grid)    :: grid   !< Speed grid.
-   type(kinetic_params)   :: par    !< Physical parameters.
-   real(R8P), allocatable :: g(:,:) !< Reduced operator, (n-2) x (n-2).
+   type(velocity_grid)    :: grid                    !< Speed grid.
+   type(kinetic_params)   :: par                     !< Physical parameters.
+   real(R8P), allocatable :: g(:,:)                  !< Reduced operator, (n-2) x (n-2).
+   logical                :: monoenergetic = .true.  !< Delta-function population (closed-form I/J integrals).
+   logical                :: aligned = .true.        !< A node sits on u_a (see init).
+   real(R8P), allocatable :: fast(:)                 !< Fast-ion distribution on the grid, 4 pi int u^2 F du = 1.
+   real(R8P)              :: u_flux = 0._R8P         !< 4 pi int u^3 F du = 3 <v_a> / (gamma_a v_Te); u_a if monoenergetic.
+   real(R8P)              :: u_energy = 0._R8P       !< sqrt(4 pi int u^4 F du): speed of the mean energy; u_a if monoenergetic.
    contains
       procedure, pass(self) :: init             !< Assemble the operator.
       procedure, pass(self) :: solve            !< Solve (G + i omega tau) f1 = rhs.
@@ -78,7 +87,19 @@ type :: kinetic_operator
       procedure, pass(self) :: source_electric  !< g7 for a unit electric drive.
       procedure, pass(self) :: source_thermal   !< g7 for a unit temperature-gradient drive.
       procedure, pass(self) :: source_fast_flux !< g7 for a unit fast-ion flux.
+      procedure, pass(self) :: fast_integrals   !< I/J integrals of the fast-ion distribution at one node.
+      procedure, pass(self), private :: init_fast !< Sample and normalise the fast-ion distribution.
 endtype kinetic_operator
+
+abstract interface
+   pure function speed_distribution(u, p) result(f)
+   !< Isotropic fast-ion speed distribution F(u), any normalisation (it is normalised to unit density on the grid).
+   import :: R8P
+   real(R8P), intent(in) :: u    !< Normalised speed v / v_Te.
+   real(R8P), intent(in) :: p(:) !< Shape parameters.
+   real(R8P)             :: f    !< F(u).
+   endfunction speed_distribution
+endinterface
 
 contains
    ! kinetic_response methods
@@ -107,18 +128,28 @@ contains
    endfunction resistivity
 
    ! kinetic_operator methods
-   subroutine init(self, par, n_nodes, u_max)
+   subroutine init(self, par, n_nodes, u_max, distribution, shape_params, align)
    !< Assemble the reduced operator G (Eqs. 13, A8-A13, B2) with the boundary conditions of Eqs. (B14)-(B15).
-   class(kinetic_operator), intent(inout)        :: self    !< The operator.
-   type(kinetic_params),    intent(in)           :: par     !< Physical parameters.
-   integer(I4P),            intent(in), optional :: n_nodes !< Number of speed nodes (odd).
-   real(R8P),               intent(in), optional :: u_max   !< Largest normalised speed.
+   !<
+   !< Without distribution the fast ions are monoenergetic at par%u_a (Eqs. 29-30). With distribution, F(u) is sampled on
+   !< the grid (it must vanish well before u_max) and par%u_a is only a reference speed (> 0) aligned with a node.
+   !<
+   !< align = .false. keeps the grid as given, so that u_a generally falls between two nodes: the Heaviside steps of the
+   !< I/J integrals then jump between nodes and the moments carry an O(h) error that depends on where u_a falls in its
+   !< cell. This is not a numerical option for physics: it emulates the paper's own discretisation (appelbe_paper).
+   class(kinetic_operator),       intent(inout)        :: self         !< The operator.
+   type(kinetic_params),          intent(in)           :: par          !< Physical parameters.
+   integer(I4P),                  intent(in), optional :: n_nodes      !< Number of speed nodes (odd).
+   real(R8P),                     intent(in), optional :: u_max        !< Largest normalised speed.
+   procedure(speed_distribution),             optional :: distribution !< Fast-ion speed distribution (footnote 30).
+   real(R8P),                     intent(in), optional :: shape_params(:) !< Parameters passed to distribution.
+   logical,                       intent(in), optional :: align        !< Align a node with u_a (default .true.).
    integer(I4P)           :: n, j                   !< Nodes, counter.
-   real(R8P)              :: ke, ka, ki, mr, a, u    !< Normalised collision strengths, mass ratio, fast speed, speed.
+   real(R8P)              :: ke, ka, ki, mr, u       !< Normalised collision strengths, mass ratio, speed.
    real(R8P)              :: ie0, ie2, je            !< I_0, I_2, J_-1 of f0.
-   real(R8P)              :: ia0, ia2, ja            !< I_0, I_2, J_-1 of F0.
+   real(R8P)              :: fi(6)                   !< I_0, I_2, J_-1 of F0 (then I_1, I_3, J_-2 of F1, unused here).
    real(R8P)              :: g1, g2, g3, g4, g5, g6  !< Coefficient functions at u (Eqs. A8-A13).
-   real(R8P), allocatable :: row(:), delta(:)        !< Operator row, discrete delta(u - u_a).
+   real(R8P), allocatable :: row(:)                  !< Operator row.
    integer(I4P)           :: ierr                    !< Allocation status.
    character(len=256)     :: emsg                    !< Allocation message.
    real(R8P)              :: u_top                   !< Grid extent actually used.
@@ -128,36 +159,33 @@ contains
    u_top = default_u_max ; if (present(u_max)) u_top = u_max
    ! align a node with u_a: the Heaviside jumps and the delta functions of F0, F1 (Eqs. 29-30) then sit on a node, which
    ! removes an erratic O(h) error in the fast-ion moments (u_max is stretched by less than half a cell)
-   if (par%u_a > 0._R8P) u_top = par%u_a * real(n - 1_I4P, R8P) / real(nint(par%u_a * real(n - 1_I4P, R8P) / u_top), R8P)
+   self%aligned = .true. ; if (present(align)) self%aligned = align
+   if (par%u_a > 0._R8P .and. self%aligned) &
+      u_top = par%u_a * real(n - 1_I4P, R8P) / real(nint(par%u_a * real(n - 1_I4P, R8P) / u_top), R8P)
    call self%grid%init(n=n, u_max=u_top)
    if (allocated(self%g)) deallocate(self%g)
-   allocate(self%g(n-2, n-2), row(n), delta(n), stat=ierr, errmsg=emsg)
+   if (allocated(self%fast)) deallocate(self%fast)
+   allocate(self%g(n-2, n-2), row(n), self%fast(n), stat=ierr, errmsg=emsg)
    if (ierr /= 0_I4P) error stop 'kinetic_operator%init: '//trim(emsg)
+   call self%init_fast(distribution, shape_params)
 
    ki = 0.75_R8P * sqrt_pi
    ke = ki / par%z_i * par%lnl_ee_ratio
    ka = ki * par%z_a**2 / par%z_i * par%n_ratio * par%lnl_ea_ratio
    mr = par%mass_ratio
-   a  = par%u_a
-   delta = 0._R8P
-   if (ka > 0._R8P) delta = delta_weights(self%grid, a)
 
    do j = 2_I4P, n - 1_I4P
       u   = self%grid%u(j)
       ie0 = i0_maxwellian(u)
       ie2 = i2_maxwellian(u)
       je  = jm1_maxwellian(u)
-      ia0 = 0._R8P ; ia2 = 0._R8P ; ja = 0._R8P
-      if (ka > 0._R8P) then
-         ia0 = heaviside(u - a, self%grid%h)
-         ia2 = (a / u)**2 * heaviside(u - a, self%grid%h)
-         ja  = (u / a) * heaviside(a - u, self%grid%h)
-      endif
-      g1 = ke / (3._R8P * u) * (ie2 + je) + ka / (3._R8P * u) * (ia2 + ja)
+      fi = 0._R8P
+      if (ka > 0._R8P) fi = self%fast_integrals(j)
+      g1 = ke / (3._R8P * u) * (ie2 + je) + ka / (3._R8P * u) * (fi(2) + fi(3))
       g2 = ke / (3._R8P * u**2) * (3._R8P * ie0 - ie2 + 2._R8P * je) &
-         + ka / (3._R8P * u**2) * (3._R8P * mr * ia0 - ia2 + 2._R8P * ja)
+         + ka / (3._R8P * u**2) * (3._R8P * mr * fi(1) - fi(2) + 2._R8P * fi(3))
       g3 = -ki / u**3 + 8._R8P * pi * ke * maxwellian(u) + ke / (3._R8P * u**3) * (-3._R8P * ie0 + ie2 - 2._R8P * je) &
-         + ka * mr * delta(j) / u**2 + ka / (3._R8P * u**3) * (-3._R8P * ia0 + ia2 - 2._R8P * ja)
+         + 4._R8P * pi * ka * mr * self%fast(j) + ka / (3._R8P * u**3) * (-3._R8P * fi(1) + fi(2) - 2._R8P * fi(3))
       g4 = 16._R8P * pi * ke / 5._R8P * maxwellian(u) / u**2
       g5 = -8._R8P * pi * ke / 3._R8P * maxwellian(u) / u**2
       g6 = 8._R8P * pi * ke / 5._R8P * (2._R8P * u**2 - 5._R8P / 3._R8P) * u * maxwellian(u)
@@ -274,8 +302,9 @@ contains
    !<
    !< Moments: j = -(4 pi e/3) int v^3 f1 dv and q = (2 pi m_e/3) int v^5 f1 dv. For a unit electric drive this gives
    !< sigma = -(8pi/3) M3 and mu = -(8pi/3) M5; for a unit temperature-gradient drive tau = -(8pi/3) M3 and
-   !< K = -(8pi/3) M5. The fast-ion source is built for a unit flux (n_a/n_e = 1, gamma_a = 1, the result is linear in
-   !< both), so j_nu = 1 - 4 pi M3 / (Z_a u_a) and zeta_nu = 4 pi M5 / u_a.
+   !< K = -(8pi/3) M5. The fast-ion source is built for n_a/n_e = 1 and gamma_a = 1 (the result is linear in both), i.e. a
+   !< flux 3 n_a <v_a> / (n_e v_Te) = u_flux, so j_nu = 1 - 4 pi M3 / (Z_a u_flux) and zeta_nu = 4 pi M5 / u_flux
+   !< (u_flux = u_a for the monoenergetic population, Eq. 31).
    class(kinetic_operator), intent(in)           :: self      !< The operator.
    real(R8P),               intent(in)           :: omega_tau !< Electron Hall parameter.
    integer(I4P),            intent(in), optional :: method    !< method_complex (default) or method_paper.
@@ -306,8 +335,8 @@ contains
    r%tau               = c * self%moment(f1(:, 2), 3_I4P)
    r%thermal_diffusion = c * self%moment(f1(:, 2), 5_I4P)
    if (fast) then
-      r%j_nu    = 1._R8P - 4._R8P * pi * self%moment(f1(:, 3), 3_I4P) / (self%par%z_a * self%par%u_a)
-      r%zeta_nu = 4._R8P * pi * self%moment(f1(:, 3), 5_I4P) / self%par%u_a
+      r%j_nu    = 1._R8P - 4._R8P * pi * self%moment(f1(:, 3), 3_I4P) / (self%par%z_a * self%u_flux)
+      r%zeta_nu = 4._R8P * pi * self%moment(f1(:, 3), 5_I4P) / self%u_flux
    endif
    endfunction response
 
@@ -328,30 +357,87 @@ contains
    endfunction source_thermal
 
    pure function source_fast_flux(self) result(s)
-   !< g7 for a unit fast-ion flux: the F1 terms of Eq. (15) with F1 = delta(u - u_a) / (4 pi u^2), i.e. Eq. (30) with
-   !< gamma_a = 1 and n_a / n_e = 1.
-   class(kinetic_operator), intent(in) :: self               !< The operator.
-   real(R8P)                           :: s(self%grid%n)     !< Source on the full grid.
-   real(R8P)                           :: ka, mr, a, u       !< Unit-flux collision strength, mass ratio, fast speed, speed.
-   real(R8P)                           :: i1, i3, jm2        !< I_1, I_3, J_-2 of F1.
-   real(R8P)                           :: delta(self%grid%n) !< Discrete delta(u - u_a).
-   integer(I4P)                        :: j                  !< Counter.
+   !< g7 for a unit fast-ion population: the F1 terms of Eq. (15) with F1 = F (Eq. 30 with gamma_a = 1, n_a / n_e = 1),
+   !< F the normalised fast-ion distribution (delta(u - u_a) / (4 pi u^2) if monoenergetic).
+   class(kinetic_operator), intent(in) :: self           !< The operator.
+   real(R8P)                           :: s(self%grid%n) !< Source on the full grid.
+   real(R8P)                           :: ka, mr, u      !< Unit-population collision strength, mass ratio, speed.
+   real(R8P)                           :: fi(6)          !< I/J integrals; I_1, I_3, J_-2 of F1 in fi(4:6).
+   integer(I4P)                        :: j              !< Counter.
 
    ka = 0.75_R8P * sqrt_pi * self%par%z_a**2 / self%par%z_i * self%par%lnl_ea_ratio
    mr = self%par%mass_ratio
-   a  = self%par%u_a
-   delta = delta_weights(self%grid, a)
    s = 0._R8P
    do j = 2_I4P, self%grid%n - 1_I4P
-      u   = self%grid%u(j)
-      i1  = (a / u) * heaviside(u - a, self%grid%h)
-      i3  = (a / u)**3 * heaviside(u - a, self%grid%h)
-      jm2 = (u / a)**2 * heaviside(a - u, self%grid%h)
-      s(j) = -ka * maxwellian(u) * (mr * delta(j) / u**2 + 0.8_R8P * u * i3                                         &
-                                    + 0.4_R8P * (2._R8P * u**2 - 10._R8P / 3._R8P + 5._R8P * mr / 3._R8P) * jm2 / u &
-                                    - 2._R8P / 15._R8P * (-5._R8P + 10._R8P * mr) * i1 / u)
+      u  = self%grid%u(j)
+      fi = self%fast_integrals(j)
+      s(j) = -ka * maxwellian(u) * (4._R8P * pi * mr * self%fast(j) + 0.8_R8P * u * fi(5)                             &
+                                    + 0.4_R8P * (2._R8P * u**2 - 10._R8P / 3._R8P + 5._R8P * mr / 3._R8P) * fi(6) / u &
+                                    - 2._R8P / 15._R8P * (-5._R8P + 10._R8P * mr) * fi(4) / u)
    enddo
    endfunction source_fast_flux
+
+   pure function fast_integrals(self, j) result(fi)
+   !< I/J integrals (Eqs. A3-A4, A6-A7) of the unit-density fast-ion distribution F at node j:
+   !<
+   !<    fi = [I_0, I_2, J_-1, I_1, I_3, J_-2],   I_k = (4 pi / u^k) int_0^u w^(k+2) F dw,
+   !<                                             J_k = (4 pi / u^k) int_u^inf w^(k+2) F dw,
+   !<
+   !< the first three for F0 (operator), the last three for F1 = F (source). Monoenergetic population: closed forms of
+   !< the delta function, with the Heaviside step 1/2 at u_a; otherwise composite quadrature on the grid.
+   class(kinetic_operator), intent(in) :: self      !< The operator.
+   integer(I4P),            intent(in) :: j         !< Node, 2 <= j <= n-1.
+   real(R8P)                           :: fi(6)     !< The integrals.
+   real(R8P)                           :: a, u, h   !< Fast speed, speed, spacing.
+   real(R8P)                           :: low(self%grid%n), up(self%grid%n) !< Quadrature weights of [0, u], [u, u_max].
+
+   u = self%grid%u(j)
+   if (self%monoenergetic) then
+      a = self%par%u_a
+      h = self%grid%h
+      fi = [heaviside(u - a, h), (a / u)**2 * heaviside(u - a, h), (u / a) * heaviside(a - u, h), &
+            (a / u) * heaviside(u - a, h), (a / u)**3 * heaviside(u - a, h), (u / a)**2 * heaviside(a - u, h)]
+   else
+      low = 4._R8P * pi * self%grid%lower_weights(j) * self%fast
+      up  = 4._R8P * pi * self%grid%upper_weights(j) * self%fast
+      fi = [sum(low * self%grid%u**2), sum(low * self%grid%u**4) / u**2, u * sum(up * self%grid%u), &
+            sum(low * self%grid%u**3) / u, sum(low * self%grid%u**5) / u**3, u**2 * sum(up)]
+   endif
+   endfunction fast_integrals
+
+   subroutine init_fast(self, distribution, shape_params)
+   !< Sample the fast-ion distribution on the grid, normalise it to unit density, compute u_flux and u_energy.
+   !<
+   !< Monoenergetic: F = delta(u - u_a) / (4 pi u^2), with the delta as a unit-area hat on the two nodes around u_a (only
+   !< its node values enter, through the mass-ratio terms); u_flux = u_energy = u_a.
+   class(kinetic_operator),       intent(inout) :: self         !< The operator.
+   procedure(speed_distribution), optional      :: distribution !< Fast-ion speed distribution.
+   real(R8P),           intent(in), optional    :: shape_params(:) !< Parameters passed to distribution.
+   real(R8P)                                    :: w(self%grid%n) !< Quadrature weights of [0, u_max].
+   integer(I4P)                                 :: j            !< Counter.
+
+   self%fast = 0._R8P
+   self%u_flux = 0._R8P
+   self%u_energy = 0._R8P
+   self%monoenergetic = .not. present(distribution)
+   if (self%par%u_a <= 0._R8P) return
+   if (self%monoenergetic) then
+      self%fast = delta_weights(self%grid, self%par%u_a, merge(4._R8P, 0.5_R8P, self%aligned)) ! node 1 dropped
+      self%fast(2:) = self%fast(2:) / (4._R8P * pi * self%grid%u(2:)**2)
+      self%fast(1) = 0._R8P ! u = 0: boundary node, outside the operator rows (only reached when u_a < h, unaligned)
+      self%u_flux = self%par%u_a
+      self%u_energy = self%par%u_a
+   else
+      if (.not. present(shape_params)) error stop 'kinetic: a fast-ion distribution needs shape_params'
+      self%fast = [(distribution(self%grid%u(j), shape_params), j=1_I4P, self%grid%n)]
+      w = 4._R8P * pi * self%grid%lower_weights(self%grid%n)
+      if (self%fast(self%grid%n) > 1.e-12_R8P * maxval(self%fast)) &
+         error stop 'kinetic: fast-ion distribution does not vanish at u_max, increase u_max'
+      self%fast = self%fast / sum(w * self%grid%u**2 * self%fast)
+      self%u_flux = sum(w * self%grid%u**3 * self%fast)
+      self%u_energy = sqrt(sum(w * self%grid%u**4 * self%fast))
+   endif
+   endsubroutine init_fast
 
    ! private helpers
    elemental function maxwellian(u) result(f)
@@ -404,15 +490,16 @@ contains
    endif
    endfunction heaviside
 
-   pure function delta_weights(grid, a) result(d)
+   pure function delta_weights(grid, a, min_cells) result(d)
    !< Discrete delta(u - a) as a unit-area hat function spread on the two nodes bracketing a.
    type(velocity_grid), intent(in) :: grid      !< Speed grid.
    real(R8P),           intent(in) :: a         !< Location of the delta.
+   real(R8P),           intent(in) :: min_cells !< Smallest a / h accepted (4 for accuracy; 0.5 to emulate the paper).
    real(R8P)                       :: d(grid%n) !< Nodal values.
    integer(I4P)                    :: k         !< Node at or below a.
    real(R8P)                       :: t         !< Position of a within [u_k, u_k+1] in units of h.
 
-   if (a < 4._R8P * grid%h) error stop 'kinetic: u_a under-resolved, increase n_nodes (need u_a >= 4 h)'
+   if (a < min_cells * grid%h) error stop 'kinetic: u_a under-resolved, increase n_nodes (need u_a >= 4 h)'
    if (a > grid%u(grid%n - 1)) error stop 'kinetic: u_a beyond the grid, increase u_max'
    k = int(a / grid%h, I4P) + 1_I4P
    t = (a - grid%u(k)) / grid%h
