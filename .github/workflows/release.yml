@@ -1,8 +1,10 @@
 name: Release appelbe
 
 # A pushed vX.Y.Z tag: the GitHub release (the source tarball, the tag's CHANGELOG.md section as the notes,
-# scripts/install.sh), then the release installed on a fresh runner by install.yml, by the reusable workflows of
-# fortran-toolchains (https://github.com/szaghi/fortran-toolchains). Managed by fobis scaffold.
+# scripts/install.sh), by the reusable workflow of fortran-toolchains (https://github.com/szaghi/fortran-toolchains).
+# Project-owned (fobos [scaffold] skip): the scaffold's install job is removed because the repository is private, and
+# install.sh downloads the release anonymously (404). Once the repository is public, drop the skip and run
+# fobis scaffold sync to restore it.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
@@ -14,12 +16,3 @@ permissions:
 jobs:
   release:
     uses: szaghi/fortran-toolchains/.github/workflows/release.yml@v1
-
-  # run from here: a release published with GITHUB_TOKEN starts no workflow, so `release: published` never fires
-  install:
-    needs: release
-    permissions:
-      contents: read
-    uses: ./.github/workflows/install.yml
-    with:
-      tag: ${{ github.ref_name }}

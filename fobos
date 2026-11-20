@@ -9,6 +9,8 @@ license    = GPL-3.0-only
 # installer (scripts/install.sh) uses its default modes, static-gnu, static-intel and static-nvf, all defined below
 [scaffold]
 toolchain = linux-gnu
+# project-owned while the repository is private: release.yml without the install job (see its header)
+skip      = .github/workflows/release.yml
 
 [dependencies]
 deps_dir = src/third_party
