@@ -13,7 +13,8 @@ program test_gui_files
 use, intrinsic :: iso_fortran_env, only : int32, int64, real64
 use penf,                          only : I4P, R8P
 use figure,                        only : app_object, ig_focus_window
-use figure_testing,                only : test_item_click, test_run, test_item_type_text
+use figure_testing,                only : test_item_click, test_run, test_item_type_text, test_id_conflicts, &
+                                          test_unnamed_items
 use appelbe,                       only : kinetic_params, kinetic_operator, kinetic_response, electron_bipolar,       &
                                           electron_profile, electron_f1, electron_scan_row, scan_value, write_table, &
                                           write_scan_row, profile_header, f1_header, scan_header, n_readouts, m_e,   &
@@ -73,6 +74,8 @@ call check('export: readouts and sweep written', line_count(tmp//'readouts.dat')
 
 ! the three scans, from the Scans window
 call show(WINDOW_SCANS)
+call check('Scans: no id conflict', test_id_conflicts() == 0_int32)
+call check('Scans: every item named', test_unnamed_items() == 0_int32)
 do k = 1_int32, 3_int32
    call test_item_click(WINDOW_SCANS//'/'//trim(radios(k)))
    call run()

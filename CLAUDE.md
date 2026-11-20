@@ -43,6 +43,8 @@ fobis build -f fobos-gui --mode gui-tests-gnu  # the GUI's headless tests src/gu
 fobis rule -f fobos-gui --ex gui-tests         # scripts/run_gui_tests.sh exe/gui (run from the root: tests read src/gui/share)
 fobis build -f fobos-gui --mode gui-release-gnu && scripts/package_gui.sh  # build/package/appelbe-gui-vX.Y.Z-<os>-<arch>.*
 bin/gui-release/appelbe-gui --self-test        # headless self-check of the (packaged) program, exit 0 when ok
+bin/gui/appelbe-gui --screenshots docs/public/gui  # the user guide's pictures, headless (after interface changes)
+python3 scripts/gui_help.py       # the Help window's text from docs/guide/gui-user.md (run_gui_tests.sh checks it)
 ```
 
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
@@ -218,7 +220,8 @@ module variable, `save`, or initialised local (audit table in `docs/guide/gui.md
 `-frecursive`). Keep it so in every library change; `test_gui_task` checks task = main thread bit for bit.
 Exports use the library's headers/writers: for the default inputs (= the driver's reference case) they are byte for
 byte the driver's `results/electrons_{profile,f1,scan_*}.dat` (`test_gui_files` compares them when results/ exists).
-Sessions (`.ses`): `key = value`, ES25.16 reals (bit-exact round trip), a table's rows embedded.
+Help = `docs/guide/gui-user.md` compiled in (one source, `scripts/gui_help.py`); its pictures come from
+`--screenshots`. Sessions (`.ses`): `key = value`, ES25.16 reals (bit-exact round trip), a table's rows embedded.
 **Packaging** (`gui-release-gnu`, `scripts/package_gui.sh`, `.github/workflows/gui.yml`; release.yml's `gui`,
 `gui-assets` attach the archives on a tag): the compiler runtime static; the script refuses a program that loads a
 build-machine library and writes the measured minimum OS/glibc into the README. Linux needs glibc 2.38 (built in the

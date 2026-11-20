@@ -18,7 +18,9 @@ use figure,                        only : app_object, FIG_OK, task_object, ig_be
                                           ig_same_line, ig_separator_text, ig_text, ig_text_colored, ig_text_disabled, &
                                           ig_text_wrapped, ip_begin_plot, ip_end_plot, ip_inf_lines, ip_line,          &
                                           ip_setup_axes, ip_setup_axes_limits, ip_setup_legend, ig_item_rect,          &
-                                          ig_separator, ip_scatter
+                                          ig_separator, ip_scatter, markdown_view_object, ig_open_popup,               &
+                                          ig_begin_popup_modal, ig_end_popup, ig_close_current_popup,                  &
+                                          ig_text_link_url, ig_align_text_to_frame_padding, ig_tooltip, ig_available
 use appelbe,                       only : n_readouts
 use appelbe_gui_model,             only : gui_inputs, f0_view, solve_job, scan_job, F0_MAXWELLIAN, F0_BIPOLAR,       &
                                           F0_TABLE, F0_KINDS, SPECIES_CUSTOM, SPECIES_NAMES, CURVE_F0,                 &
@@ -27,11 +29,12 @@ use appelbe_gui_model,             only : gui_inputs, f0_view, solve_job, scan_j
 use appelbe_gui_tasks,             only : solve_work, scan_work
 use appelbe_gui_export,            only : export_profile, export_f1, export_readouts, export_sweep, export_scan
 use appelbe_gui_session,           only : save_session, load_session
+use appelbe_gui_help,              only : help_text, HELP_SITE
 
 implicit none
 private
 public :: gui_object, gui_version, TABLE_FILTERS
-public :: WINDOW_INPUTS, WINDOW_F0, WINDOW_DIAGNOSTICS, WINDOW_TRANSPORT, WINDOW_SCANS
+public :: WINDOW_INPUTS, WINDOW_F0, WINDOW_DIAGNOSTICS, WINDOW_TRANSPORT, WINDOW_SCANS, WINDOW_HELP
 public :: EXPORTS, PLOT_TITLES, N_PLOTS, SESSION_FILTERS
 public :: QUANTITIES, Q_SIGMA, Q_BETA, Q_KAPPA, Q_J_NU, Q_ZETA_NU, DRIVES, READOUT_LABELS
 
@@ -41,6 +44,7 @@ character(len=*), parameter :: WINDOW_F0          = 'Electron f0'  !< The f0 pan
 character(len=*), parameter :: WINDOW_DIAGNOSTICS = 'Diagnostics'  !< What TS and ECE read.
 character(len=*), parameter :: WINDOW_TRANSPORT   = 'Transport'    !< Transport and the alpha closure.
 character(len=*), parameter :: WINDOW_SCANS       = 'Scans'        !< One-parameter scans of the bipolar f0.
+character(len=*), parameter :: WINDOW_HELP        = 'Help'         !< The user guide.
 !> Types offered by the session dialogs.
 character(len=*), parameter :: SESSION_FILTERS(2) = [character(len=32) :: 'Sessions|ses', 'All files|*']
 !> What File > Export writes (the dialog ids are 'export:' and the index).
@@ -103,6 +107,10 @@ type :: gui_object
    character(len=:), allocatable :: message              !< The last message (a table loaded, a failure): '' for none.
    logical                       :: quit = .false.       !< File > Quit was picked.
    logical                       :: front = .false.      !< The f0 tab was brought to the front (once, at start).
+   type(markdown_view_object)    :: help                 !< The user guide (Help window).
+   character(len=:), allocatable :: link                 !< The last link clicked in the guide ('' none).
+   logical                       :: show_help = .false.  !< Help > User guide was picked: bring the Help tab forward.
+   logical                       :: about = .false.      !< Help > About was picked: open its box.
    contains
       procedure, pass(self) :: init        !< The views of the default inputs.
       procedure, pass(self) :: frame       !< Declare one frame: menus, dock space, windows.
@@ -117,6 +125,7 @@ type :: gui_object
       procedure, pass(self) :: open_session !< Load a session file.
       procedure, pass(self) :: write_session !< Save the inputs as a session file.
       procedure, pass(self) :: export      !< Write one of the EXPORTS.
+      procedure, pass(self) :: destroy     !< Release what FIGURE holds for the GUI (before app%destroy).
 endtype gui_object
 
 contains
@@ -125,8 +134,18 @@ contains
    class(gui_object), intent(inout) :: self !< The GUI.
 
    self%message = ''
+   self%link = ''
    call compute_f0_view(self%inp, self%view)
+   if (.not. self%help%is_initialized()) call self%help%init()
+   call self%help%set_text(help_text())
    endsubroutine init
+
+   subroutine destroy(self)
+   !< Release the help's document (FIGURE's native state); call before app%destroy.
+   class(gui_object), intent(inout) :: self !< The GUI.
+
+   if (self%help%is_initialized()) call self%help%destroy()
+   endsubroutine destroy
 
    subroutine inputs_changed(self)
    !< Recompute the f0 view (milliseconds) and mark the solve stale.
@@ -351,9 +370,12 @@ contains
    call diagnostics_window(self)
    call transport_window(self)
    call scans_window(self)
+   call help_window(self)
+   call about_box(self)
    call save_png(self, app)
    ! the tab in front after the layout is Dear ImGui's choice: the f0 panel, once its window exists
    if (.not. self%front) self%front = ig_focus_window(WINDOW_F0)
+   if (self%show_help) self%show_help = .not. ig_focus_window(WINDOW_HELP)
    endsubroutine frame
 
    ! private
@@ -391,6 +413,11 @@ contains
          endif
          call ig_separator()
          if (ig_menu_item('Quit')) self%quit = .true.
+         call ig_end_menu()
+      endif
+      if (ig_begin_menu('Help')) then
+         if (ig_menu_item('User guide')) self%show_help = .true.
+         if (ig_menu_item('About appelbe-gui')) self%about = .true.
          call ig_end_menu()
       endif
       call ig_end_main_menu_bar()
@@ -475,6 +502,7 @@ contains
       call ig_dock_window(WINDOW_DIAGNOSTICS, right)
       call ig_dock_window(WINDOW_TRANSPORT, right)
       call ig_dock_window(WINDOW_SCANS, right)
+      call ig_dock_window(WINDOW_HELP, right)
       call ig_dock_layout_end(root)
    endif
    call ig_dock_space(root)
@@ -670,6 +698,7 @@ contains
    real(R8P)                        :: fraction !< Progress.
    character(len=:), allocatable    :: msg      !< Progress message.
    real(real64)                     :: h        !< Plot height [pixels].
+   real(real64)                     :: cw, ch   !< Column width, height available [pixels].
    integer(int32)                   :: k        !< Counter.
    logical                          :: sel      !< A selection changed.
    integer(int32), parameter        :: CM(5) = [2_int32, 4_int32, 6_int32, 8_int32, 9_int32] !< Maxwellian column.
@@ -697,10 +726,13 @@ contains
       if (self%job%done > 0) then
          h = ig_em(16)
          if (ig_collapsing_header('Changes against the Maxwellians [%]', default_open=.true.)) then
-            call ig_push_item_width(ig_em(7))
+            ! four columns, each a quarter of the width: the field 6 em, its label in the rest
+            call ig_available(cw, ch)
+            cw = max(cw / 4._real64, ig_em(12))
+            call ig_push_item_width(ig_em(6))
             do k = 1_int32, 12_int32
                call readout(trim(READOUT_LABELS(k)), 100._R8P * self%job%readouts(5 + k), '%+.4f')
-               if (mod(k, 4_int32) /= 0_int32) call ig_same_line(ig_em(14) * real(mod(k, 4_int32), real64))
+               if (mod(k, 4_int32) /= 0_int32) call ig_same_line(cw * real(mod(k, 4_int32), real64))
             enddo
             call ig_pop_item_width()
             call ig_text_disabled('signed at omega tau = 0; of the modulus at the omega tau above; last row: against the '// &
@@ -769,9 +801,17 @@ contains
       call ig_same_line()
       if (ig_radio('w##scan', self%inp%scan_param, 3_int32)) continue
       ip = self%inp%scan_param
-      if (ig_input('from', self%inp%scan_min(ip), format='%.4g')) continue
+      ! the words before their fields: "from [a] to [b], [n] values"
+      call ig_align_text_to_frame_padding()
+      call ig_text(trim(SCAN_PARAMETERS(ip))//' from')
       call ig_same_line()
-      if (ig_input('to', self%inp%scan_max(ip), format='%.4g')) continue
+      if (ig_input('##from', self%inp%scan_min(ip), format='%.4g')) continue
+      call ig_tooltip('first value of the scan')
+      call ig_same_line()
+      call ig_text('to')
+      call ig_same_line()
+      if (ig_input('##to', self%inp%scan_max(ip), format='%.4g')) continue
+      call ig_tooltip('last value of the scan')
       call ig_same_line()
       if (ig_input('values', self%inp%scan_n(ip), step=1_int32)) self%inp%scan_n(ip) = max(2_int32, self%inp%scan_n(ip))
       call ig_pop_item_width()
@@ -803,4 +843,40 @@ contains
    endif
    call ig_end()
    endsubroutine scans_window
+   subroutine help_window(self)
+   !< The user guide (docs/guide/gui-user.md, compiled in), with its contents and a search (ctrl+f); a link clicked is
+   !< shown below, to open in the browser.
+   type(gui_object), intent(inout) :: self !< The GUI.
+   character(len=:), allocatable    :: url  !< A link clicked in this frame.
+
+   if (ig_begin(WINDOW_HELP)) then
+      if (self%help%draw('guide', url, height=-ig_em(2))) self%link = url
+      if (len(self%link) > 0) then
+         call ig_text_link_url(self%link, self%link)
+      else
+         call ig_text_link_url('This guide online', HELP_SITE)
+      endif
+   endif
+   call ig_end()
+   endsubroutine help_window
+
+   subroutine about_box(self)
+   !< Help > About: the version, the licence, the sources.
+   type(gui_object), intent(inout) :: self !< The GUI.
+
+   if (self%about) then
+      call ig_open_popup('About appelbe-gui')
+      self%about = .false.
+   endif
+   if (ig_begin_popup_modal('About appelbe-gui')) then
+      call ig_text('appelbe-gui '//gui_version)
+      call ig_text_wrapped('Non-Maxwellian electron f0, its diagnostics and the transport it implies, on the appelbe '// &
+                           'library (Appelbe et al., Phys. Plasmas 26, 102704, 2019). F. Negro, L. Senni, S. Zaghi.')
+      call ig_text_wrapped('Free software under the GNU GPL v3; built with FIGURE (MIT), Dear ImGui, ImPlot and SDL3: '// &
+                           'their licences are in the licenses folder of the package.')
+      call ig_text_link_url('https://github.com/szaghi/appelbe', 'https://github.com/szaghi/appelbe')
+      if (ig_button('Close')) call ig_close_current_popup()
+      call ig_end_popup()
+   endif
+   endsubroutine about_box
 endmodule appelbe_gui_app

@@ -8,7 +8,8 @@ title: Desktop GUI
 electron $f_0$ (a Maxwellian, the bipolar distortion, or a table read from a file), see what Thomson scattering and ECE
 read from it, and how it changes transport and the α closure. It is built with
 [FIGURE](https://github.com/szaghi/figure) (Dear ImGui and ImPlot for Fortran) and is meant for a physicist who does not
-build Fortran: it ships as a prebuilt program for macOS, Windows and Linux (issue #2).
+build Fortran: it ships as a prebuilt program for macOS, Windows and Linux (issue #2). For its users:
+[Install the GUI](gui-install) and [Using the GUI](gui-user); this page is for its developers.
 
 The GUI adds **no physics**. Every number it shows is computed by the library, by the same procedures the driver
 `appelbe_electrons` calls ([the study of a distorted f₀](electrons#the-study-of-a-distorted-f0)); every number is
@@ -48,6 +49,7 @@ bin/gui/appelbe-gui                  # a window
 bin/gui/appelbe-gui case.ses         # a window, with a session's inputs
 bin/gui/appelbe-gui --remote 8080    # no window: served to a web browser (FIGURE's remote mode)
 bin/gui/appelbe-gui --self-test      # headless checks, exit status 0 when they pass
+bin/gui/appelbe-gui --screenshots docs/public/gui   # the user guide's pictures, headless
 bin/gui/appelbe-gui --version
 ```
 
@@ -103,6 +105,8 @@ profiles, the readouts, the $\omega\tau$ sweep or the scan as `.dat` tables (the
 rows), and saves a plot shown as a **PNG**. The default inputs are the driver's reference case, so their exports are
 byte for byte `results/electrons_profile.dat`, `electrons_f1.dat` and `electrons_scan_{A,u0,w}.dat`.
 
+| Help | the user guide, [Using the GUI](gui-user), compiled in, with its contents and a search; Help > About | `docs/guide/gui-user.md` |
+
 The $f_0$ panels follow every input at once. The Transport panel shows the last complete solve; when the inputs change
 afterwards it says so (*the inputs changed since this solve*) until **Solve** is pressed again. A cancelled solve keeps
 the previous one. The TS fit curve is $\exp(c - w^2/T)$ with $T$ and $c$ from `ts_fit` (the intercept is not part of
@@ -129,6 +133,9 @@ src/gui/appelbe_gui_export.F90 the .dat exports (the library's headers and write
 src/gui/appelbe_gui_session.F90 the session file (no FIGURE)
 src/gui/tests/                 headless tests (test_gui_*) and their checks (gui_assert)
 src/gui/appelbe_gui_selftest.F90 --self-test: the packaged program checks itself, headless
+src/gui/appelbe_gui_shots.F90  --screenshots: the user guide's pictures
+src/gui/appelbe_gui_help.F90   the Help window's text (appelbe_gui_help.inc, generated from docs/guide/gui-user.md)
+scripts/gui_help.py            writes or checks appelbe_gui_help.inc
 src/gui/share/                 the example f0 table, the package README, the macOS Info.plist
 scripts/package_gui.sh         the archive of the running platform (checks its libraries)
 fobos-gui                      the GUI's build; FIGURE and PENF fetched into src/gui/third_party/
@@ -151,6 +158,21 @@ fobos-gui                      the GUI's build; FIGURE and PENF fetched into src
 - **Recomputation.** The $f_0$ panel costs milliseconds (operator assembly, no solve): it is recomputed on every input
   change, on the frame loop's thread. The solves (readouts, $f_1$, the sweep in $\omega\tau$: about 60 responses, seconds
   at 801 nodes) and the scans (about 5 responses a row) run as FIGURE tasks on a worker thread ([Threads](#threads)), so the window never freezes.
+
+## The help and the pictures
+
+**One source.** The Help window shows `docs/guide/gui-user.md`, the page of this site: `scripts/gui_help.py` turns it
+into `src/gui/appelbe_gui_help.inc` (the front matter and the pictures dropped, links to other pages made absolute),
+which `appelbe_gui_help` compiles in, since a packaged program has no repository to read. After editing the page, run
+`python3 scripts/gui_help.py`; `scripts/run_gui_tests.sh` fails while the include differs from the page
+(`--check`).
+
+**Pictures from the program.** The guide's pictures, `docs/public/gui/*.png`, are drawn by the program itself:
+`appelbe-gui --screenshots docs/public/gui` runs the default inputs headless (a solve, a scan of $w$), brings each panel
+to the front and writes it with FIGURE's CPU renderer (`test_capture`: the same pixels on every machine). Rerun it
+after a change of the interface.
+
+![The Help window: the user guide with its contents](/gui/help.png)
 
 ## The session file
 
@@ -209,6 +231,7 @@ a snapshot of the GUI's own output.
 | `test_gui_task` | a `solve_job` run as a task equals the same job on the main thread bit for bit (readouts, $f_1$, every response), with two tasks and the main thread computing at once; the readouts and a response equal `electron_readouts` and `kinetic_operator%response` called directly; a cancel stops the task early with consistent data; a rejected input fails the job with the library's message, no stop |
 | `test_gui_panels` | inputs typed into the fields; every number of Diagnostics and Transport read from its field as shown, against `ts_temperature`, `kinetic_temperature`, `slope_temperature`, the peaks of $f_0/f_M - 1$ from the operators, `electron_readouts` (to the field's last digit); the arrays the plots read (the equal-energy profile, the TS fit, $f_1$, the chosen quantity against $\omega\tau$ after a combo and a radio button) against `electron_profile`, `ts_fit`, `electron_f1`, `kinetic_operator%response`, bit for bit; Solve, a stale mark after an input change, Cancel keeping the last solve |
 | `test_gui_files` | the exports of the default inputs equal, byte for byte, the files the driver's procedures write (the profile, $f_1$, each scan run from the Scans window by its radio button and **Run scan**), and the driver's own `results/electrons_*.dat` when they exist; a session saved and loaded gives the same inputs and view bit for bit (a custom species and a table); a bad session names its line and changes nothing; a plot saved as PNG |
+| `test_gui_help` | the guide compiled in (its sections, no front matter or picture, absolute links), held by the Help window; Help > User guide brings it forward; its search; Help > About opens and closes; no id conflict, every item of the GUI named (FIGURE's markdown view leaves its contents entries unnamed) |
 | `test_gui_f0` | the windows are drawn, no id conflict, every interactive item named; the default $f_0$ is the driver's; $A$, $w$, $T_e$ typed into the fields give the library's $f_0$, grid and $u_\alpha$; the equal-energy Maxwellian; a rejected input is a message and the view comes back; a table is read, a missing one reported |
 
 ```bash

@@ -50,6 +50,8 @@ cd appelbe-gui-vX.Y.Z-linux-x86_64
 `ldd --version` prints your glibc: the program needs the version in its `README.txt` or newer. With an older glibc it
 stops at once with *version 'GLIBC_2.38' not found*; then [build it](gui#build) from the sources.
 
+How to use it: [Using the GUI](gui-user), also in the program (**Help → User guide**).
+
 ## If something does not work
 
 - `appelbe-gui --self-test` (from a terminal; on macOS

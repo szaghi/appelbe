@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Run the GUI's headless tests: every test_gui_* executable in DIR (default exe/gui), from the repository root (the
 # tests read src/gui/share/). Build first: fobis build -f fobos-gui --mode gui-tests-gnu (exe/gui) or gui-tests-gnu-debug
-# (exe/gui-debug). Prints PASS/FAIL per program and exits non-zero on any failure.
+# (exe/gui-debug). First checks that the in-app help is the user guide (scripts/gui_help.py --check). Prints
+# PASS/FAIL per program and exits non-zero on any failure.
 set -u
 dir="${1:-exe/gui}"
 pass=0; fail=0
+# the in-app help is the user guide (one source): the include must be what the page gives
+if python3 scripts/gui_help.py --check; then pass=$((pass + 1)); else fail=$((fail + 1)); fi
 shopt -s nullglob
 tests=("$dir"/test_gui_*)
 if [ ${#tests[@]} -eq 0 ]; then
