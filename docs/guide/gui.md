@@ -66,7 +66,8 @@ flowchart LR
 ```
 src/gui/appelbe_gui.F90        the program: --remote, --version; the frame loop
 src/gui/appelbe_gui_app.F90    gui_object: the windows, declared every frame from the state (gui%frame)
-src/gui/appelbe_gui_model.F90  gui_inputs, the views, and the library calls that compute them (no FIGURE)
+src/gui/appelbe_gui_model.F90  gui_inputs, the views, solve_job, and the library calls that compute them (no FIGURE)
+src/gui/appelbe_gui_tasks.F90  solve_work: a solve_job's steps on a FIGURE worker thread
 src/gui/tests/                 headless tests (test_gui_*) and their checks (gui_assert)
 src/gui/share/                 the example f0 table shipped with the program
 fobos-gui                      the GUI's build; FIGURE and PENF fetched into src/gui/third_party/
@@ -87,7 +88,35 @@ fobos-gui                      the GUI's build; FIGURE and PENF fetched into src
   ([kinetic solver](kinetic-solver#the-operator)) and is shown in red; the program keeps running. `input_error` rejects
   values out of their domain (a temperature, an energy, a mass not positive) before any library call.
 - **Recomputation.** The $f_0$ panel costs milliseconds (operator assembly, no solve): it is recomputed on every input
-  change, on the frame loop's thread.
+  change, on the frame loop's thread. The solves (readouts, $f_1$, the sweep in $\omega\tau$: about 60 responses, seconds
+  at 801 nodes) run as a FIGURE task on a worker thread ([Threads](#threads)), so the window never freezes.
+
+## Threads
+
+A FIGURE [task](https://szaghi.github.io/figure/guide/processes#tasks) runs `work(h, data)` on a worker thread, on its
+own copy of `data`. The GUI's work is `solve_work` (`appelbe_gui_tasks`): it runs the steps of a `solve_job`
+(`appelbe_gui_model`), reports the progress after each, and returns at the first step after a cancel. Step 1 builds the
+operators, the readouts (`electron_readouts`) and the $f_1$ profiles (`electron_f1`); each further step the responses at
+one $\omega\tau$ of the $f_0$, of the Maxwellian at $T_e$ and of the one at $T_{\text{kin}}$. It never draws.
+
+This is safe because the code a task runs shares nothing with the main thread. The audit of `src/lib`, every module
+read (2026-11-20, against the tree of this commit):
+
+| Hazard | Finding |
+|---|---|
+| Module variables | none: every module-level entity is a `parameter` (constants, the `F0_*`, `CURVE_*` codes, headers) |
+| `save`, `data`, `common`, initialised local variables (implicitly `save`) | none; the `= value` in `kinetic_params`, `kinetic_response`, `kinetic_operator`, `velocity_grid` are default initialisations of type components, not saved variables |
+| Large local arrays made static by gfortran | none can be: every procedure is compiled with `-frecursive` (`fobos-gui`), which keeps all locals on the stack (without it gfortran puts fixed-size locals above `-fmax-stack-var-size` in static memory); FIGURE gives each worker 64 MiB of stack, the largest automatic arrays here are a few vectors of `n` reals |
+| gfortran's `-fcheck=recursion` (in `-fcheck=all`), which stops two threads entering one non-`recursive` procedure | not generated with `-frecursive` (checked: a procedure that calls itself compiles and runs under `-frecursive -fcheck=recursion`), so the debug build runs tasks too |
+| Procedure arguments (`electrons`, `distribution`) | module functions (`pure`), no host association, no trampoline |
+| I/O | `read_table` opens its own unit (`newunit`), only on the main thread (a table is loaded from the dialog); a task does no I/O. `open_results` (the drivers' `mkdir -p`) is never called by the GUI |
+| `error stop` reachable from a task | none for a valid build: `init`'s rejections go through `stat` (step 1 fails with the message instead); `solve_dense`'s "singular matrix" needs a singular $G + i\omega\tau$, which the physical operator is not; the remaining ones are programming errors (a distribution without its parameters) |
+| PENF | only its kind parameters are used |
+
+The model (`appelbe_gui_model`) has no module variable either. A future change to `src/lib` must keep these properties:
+a module variable, a `save`, or an initialised local variable would make the GUI's results depend on what another
+thread is doing. `test_gui_task` would catch most such regressions (two tasks and the main thread compute at once and
+must agree bit for bit), but not all: keep the audit above current.
 
 ## Tests
 
@@ -98,6 +127,7 @@ a snapshot of the GUI's own output.
 
 | Test | Checks |
 |---|---|
+| `test_gui_task` | a `solve_job` run as a task equals the same job on the main thread bit for bit (readouts, $f_1$, every response), with two tasks and the main thread computing at once; the readouts and a response equal `electron_readouts` and `kinetic_operator%response` called directly; a cancel stops the task early with consistent data; a rejected input fails the job with the library's message, no stop |
 | `test_gui_f0` | the windows are drawn, no id conflict, every interactive item named; the default $f_0$ is the driver's; $A$, $w$, $T_e$ typed into the fields give the library's $f_0$, grid and $u_\alpha$; the equal-energy Maxwellian; a rejected input is a message and the view comes back; a table is read, a missing one reported |
 
 ```bash

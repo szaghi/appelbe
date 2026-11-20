@@ -211,6 +211,9 @@ macOS arm64, Windows and Linux. Rules: the library stays GUI-free (the core fobo
 adds no physics (every number from a library call, `appelbe_gui_model`); every shown number is checked by a headless
 test against a direct library call (never a snapshot); inputs the library rejects are messages (`stat`/`errmsg`), never
 a stop. `gui%frame(app)` is called by the program and by the tests alike. Docs: `docs/guide/gui.md`.
+**Threads:** the solves run as FIGURE tasks (`solve_work` over `solve_job` steps). This relies on `src/lib` having no
+module variable, `save`, or initialised local (audit table in `docs/guide/gui.md`, "Threads"; `fobos-gui` compiles with
+`-frecursive`). Keep it so in every library change; `test_gui_task` checks task = main thread bit for bit.
 
 ## Non-Maxwellian electrons (beyond the paper)
 

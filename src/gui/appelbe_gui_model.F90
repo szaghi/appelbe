@@ -14,17 +14,18 @@ use appelbe_constants,      only : m_e, m_alpha, m_proton, m_carbon12, amu, keV_
 use appelbe_distributions,  only : electron_maxwellian, electron_bipolar, electron_table, electron_table_params, &
                                    electron_table_check
 use appelbe_eedf,           only : ts_temperature, kinetic_temperature
-use appelbe_electron_study, only : electron_profile, ts_windows, ece_window
+use appelbe_electron_study, only : electron_profile, electron_f1, electron_readouts, n_readouts, ts_windows, ece_window
 use appelbe_io,             only : read_table
-use appelbe_kinetic,        only : kinetic_params, kinetic_operator
+use appelbe_kinetic,        only : kinetic_params, kinetic_operator, kinetic_response
 use appelbe_plasma,         only : speed_ratio
 
 implicit none
 private
 public :: F0_MAXWELLIAN, F0_BIPOLAR, F0_TABLE, F0_KINDS
 public :: SPECIES_ALPHA, SPECIES_PROTON, SPECIES_CARBON, SPECIES_CUSTOM, SPECIES_NAMES
-public :: gui_inputs, f0_view
+public :: gui_inputs, f0_view, solve_job
 public :: species_defaults, input_error, physical_params, init_electrons, load_table, compute_f0_view
+public :: CURVE_F0, CURVE_MAXWELLIAN, CURVE_EQUAL_ENERGY, N_CURVES, omega_tau_grid
 
 integer(I4P), parameter :: F0_MAXWELLIAN = 1_I4P !< f0: a Maxwellian at T (electron_maxwellian).
 integer(I4P), parameter :: F0_BIPOLAR    = 2_I4P !< f0: the bipolar distortion (electron_bipolar).
@@ -75,7 +76,115 @@ type :: f0_view
    real(R8P)                     :: u_a = 0._R8P    !< v_a / v_Te of the fast ions.
 endtype f0_view
 
+integer(I4P), parameter :: CURVE_F0           = 1_I4P !< Responses of the chosen f0.
+integer(I4P), parameter :: CURVE_MAXWELLIAN   = 2_I4P !< Responses of the Maxwellian at T_e.
+integer(I4P), parameter :: CURVE_EQUAL_ENERGY = 3_I4P !< Responses of the Maxwellian of the same energy (T = T_kin).
+integer(I4P), parameter :: N_CURVES           = 3_I4P !< Curves of the omega tau sweep.
+
+type :: solve_job
+   !< The solves of the transport panel, as a sequence of steps (solve_job%step) that a FIGURE task runs on its own copy
+   !< of the job, reporting its progress between steps and stopping at a cancel. Step 1 builds the operators, the
+   !< readouts (electron_readouts: omega tau = 0 and inp%omega_tau) and the f1 profiles (electron_f1); step 1 + k the
+   !< responses at wt(k) of the three curves (CURVE_*). Every result is a library call's.
+   type(gui_inputs)                    :: inp                    !< The inputs solved for (a copy).
+   integer(I4P)                        :: done = 0_I4P           !< Steps done.
+   logical                             :: failed = .false.       !< A step failed: error says why.
+   character(len=:), allocatable       :: error                  !< Why ('' while none).
+   real(R8P)                           :: readouts(n_readouts) = 0._R8P !< electron_readouts (readouts_header).
+   real(R8P), allocatable              :: f1(:,:)                !< electron_f1 (f1_header).
+   real(R8P), allocatable              :: wt(:)                  !< Hall parameters of the sweep.
+   type(kinetic_response), allocatable :: r(:,:)                 !< Responses (wt, curve).
+   type(kinetic_operator)              :: ob, om, ot             !< Operators: f0, Maxwellian at T_e, at T_kin.
+   contains
+      procedure, pass(self) :: setup  !< Copy the inputs, size the results.
+      procedure, pass(self) :: steps  !< Number of steps.
+      procedure, pass(self) :: step   !< Do the next step.
+      procedure, pass(self) :: finished !< Every step done (or a failure).
+endtype solve_job
+
 contains
+   pure function omega_tau_grid() result(wt)
+   !< The sweep's Hall parameters: 0, then 10^-2 to 10^2 with four values per decade (18 values).
+   real(R8P) :: wt(18) !< Hall parameters.
+   integer   :: k      !< Counter.
+
+   wt(1) = 0._R8P
+   wt(2:) = [(10._R8P**(-2._R8P + 0.25_R8P * real(k, R8P)), k = 0, 16)]
+   endfunction omega_tau_grid
+
+   subroutine setup(self, inp)
+   !< Copy the inputs and size the results; no solve yet.
+   class(solve_job), intent(inout) :: self !< The job.
+   type(gui_inputs), intent(in)    :: inp  !< Inputs.
+
+   self%inp = inp
+   self%done = 0_I4P
+   self%failed = .false.
+   self%error = ''
+   self%readouts = 0._R8P
+   self%wt = omega_tau_grid()
+   if (allocated(self%r)) deallocate(self%r)
+   allocate(self%r(size(self%wt), N_CURVES))
+   if (allocated(self%f1)) deallocate(self%f1)
+   endsubroutine setup
+
+   pure function steps(self) result(n)
+   !< Number of steps: the operators, readouts and f1, then one per Hall parameter of the sweep.
+   class(solve_job), intent(in) :: self !< The job.
+   integer(I4P)                 :: n    !< Steps.
+
+   n = 1_I4P + size(self%wt, kind=I4P)
+   endfunction steps
+
+   pure function finished(self) result(yes)
+   !< Every step done, or a step failed.
+   class(solve_job), intent(in) :: self !< The job.
+   logical                      :: yes  !< Finished.
+
+   yes = self%failed .or. self%done >= self%steps()
+   endfunction finished
+
+   subroutine step(self)
+   !< Do the next step (nothing once finished). A rejected input sets failed and error.
+   class(solve_job), intent(inout) :: self !< The job.
+   type(kinetic_response)          :: rm(2) !< Maxwellian responses at omega tau = 0 and inp%omega_tau.
+   integer(I4P)                    :: stat  !< Status.
+   integer(I4P)                    :: k     !< Hall parameter of this step.
+
+   if (self%finished()) return
+   if (self%done == 0_I4P) then
+      self%error = input_error(self%inp)
+      if (len(self%error) > 0) then
+         self%failed = .true. ; return
+      endif
+      call init_electrons(self%inp, self%ob, stat, self%error)
+      if (stat == 0_I4P) call self%om%init(par=physical_params(self%inp), n_nodes=self%inp%n_nodes, &
+                                           u_max=self%inp%u_max, stat=stat, errmsg=self%error)
+      if (stat == 0_I4P) call self%ot%init(par=physical_params(self%inp), n_nodes=self%inp%n_nodes,          &
+                                           u_max=self%inp%u_max, electrons=electron_maxwellian,             &
+                                           electron_params=[kinetic_temperature(self%ob)], stat=stat, errmsg=self%error)
+      if (stat /= 0_I4P) then
+         self%failed = .true. ; return
+      endif
+      if (.not. self%ob%par%u_a > 0._R8P) then
+         self%failed = .true. ; self%error = 'no fast ions: their energy must be positive' ; return
+      endif
+      rm(1) = self%om%response(omega_tau=0._R8P)
+      rm(2) = self%om%response(omega_tau=self%inp%omega_tau)
+      call electron_readouts(self%ob, rm, [0._R8P, self%inp%omega_tau], self%readouts, stat=stat, errmsg=self%error)
+      if (stat /= 0_I4P) then
+         self%failed = .true. ; return
+      endif
+      self%f1 = electron_f1(self%ob, self%om, [0._R8P, self%inp%omega_tau])
+   else
+      k = self%done
+      self%r(k, CURVE_F0)           = self%ob%response(omega_tau=self%wt(k))
+      self%r(k, CURVE_MAXWELLIAN)   = self%om%response(omega_tau=self%wt(k))
+      self%r(k, CURVE_EQUAL_ENERGY) = self%ot%response(omega_tau=self%wt(k))
+   endif
+   self%done = self%done + 1_I4P
+   endsubroutine step
+
    pure subroutine species_defaults(inp)
    !< Z, mass and energy of the chosen species (custom keeps what the user set).
    type(gui_inputs), intent(inout) :: inp !< Inputs.
