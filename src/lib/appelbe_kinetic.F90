@@ -266,7 +266,10 @@ contains
    allocate(f1(n, nc))
    if (omega_tau == 0._R8P) then
       a = self%g
-      b = rhs(2:n-1, :)
+      ! explicit allocation, not b = rhs(2:n-1, :): nvfortran 26.9 corrupts the heap on that reallocating assignment here
+      ! (valgrind: copy past the end of rhs and b; test_solvers aborts in malloc). Same semantics on every compiler.
+      allocate(b(m, nc))
+      b(:, :) = rhs(2:n-1, :)
       call solve_dense(a=a, b=b)
       f1(2:n-1, :) = cmplx(b, 0._R8P, kind=R8P)
    else
