@@ -13,7 +13,7 @@ use penf,                   only : I4P, R8P
 use appelbe_constants,      only : m_e, m_alpha, m_proton, m_carbon12, amu, keV_J, MeV_J
 use appelbe_distributions,  only : electron_maxwellian, electron_bipolar, electron_table, electron_table_params, &
                                    electron_table_check
-use appelbe_eedf,           only : ts_temperature, kinetic_temperature
+use appelbe_eedf,           only : ts_fit, kinetic_temperature
 use appelbe_electron_study, only : electron_profile, electron_f1, electron_readouts, n_readouts, ts_windows, ece_window
 use appelbe_io,             only : read_table
 use appelbe_kinetic,        only : kinetic_params, kinetic_operator, kinetic_response
@@ -72,6 +72,10 @@ type :: f0_view
    real(R8P), allocatable        :: prof_kin(:,:)   !< electron_profile(ob, ot): the same against the equal-energy one.
    real(R8P)                     :: t_kin = 0._R8P  !< Kinetic temperature (2/3) <u^2> [T_e].
    real(R8P)                     :: t_ts(2) = 0._R8P !< TS temperatures, Gaussian fit on w <= ts_windows(1:2) [T_e].
+   real(R8P)                     :: c_ts(2) = 0._R8P !< Their intercepts: the fit is exp(c - w^2 / T).
+   real(R8P), allocatable        :: s_fit(:,:)      !< The fitted spectra exp(c - w^2 / T) at w = u, both windows.
+   real(R8P)                     :: peak_df(2) = 0._R8P  !< max |f0/f_M - 1| on u_L <= 4: against T_e, against T_kin.
+   real(R8P)                     :: peak_ddf(2) = 0._R8P !< max |f0'/f_M' - 1| on 0 < u_L <= 4: the same.
    real(R8P)                     :: t_slope(2) = 0._R8P !< Range of the slope temperature in the ECE window [T_e].
    real(R8P)                     :: u_a = 0._R8P    !< v_a / v_Te of the fast ions.
 endtype f0_view
@@ -133,7 +137,8 @@ contains
    class(solve_job), intent(in) :: self !< The job.
    integer(I4P)                 :: n    !< Steps.
 
-   n = 1_I4P + size(self%wt, kind=I4P)
+   n = 0_I4P
+   if (allocated(self%wt)) n = 1_I4P + size(self%wt, kind=I4P)
    endfunction steps
 
    pure function finished(self) result(yes)
@@ -323,10 +328,18 @@ contains
    endif
    v%prof     = electron_profile(v%ob, v%om)
    v%prof_kin = electron_profile(v%ob, v%ot)
-   v%t_ts     = [ts_temperature(v%ob, ts_windows(1)), ts_temperature(v%ob, ts_windows(2))]
+   call ts_fit(v%ob, ts_windows(1), v%t_ts(1), v%c_ts(1))
+   call ts_fit(v%ob, ts_windows(2), v%t_ts(2), v%c_ts(2))
+   v%s_fit = reshape([exp(v%c_ts(1) - v%prof(:, 1)**2 / v%t_ts(1)), exp(v%c_ts(2) - v%prof(:, 1)**2 / v%t_ts(2))], &
+                     [size(v%prof, 1), 2])
    t   = v%prof(:, 8)
    win = v%prof(:, 2) >= ece_window(1) .and. v%prof(:, 2) <= ece_window(2)
    v%t_slope = [minval(t, mask=win), maxval(t, mask=win)]
+   ! the slides' measures of the distortion, on the bulk and the ECE window (u_L <= 4); node 1 has f0' = 0
+   win = v%prof(:, 2) <= ece_window(2)
+   v%peak_df  = [maxval(abs(v%prof(:, 6)), mask=win), maxval(abs(v%prof_kin(:, 6)), mask=win)]
+   win(1) = .false.
+   v%peak_ddf = [maxval(abs(v%prof(:, 7)), mask=win), maxval(abs(v%prof_kin(:, 7)), mask=win)]
    v%u_a = v%ob%par%u_a
    v%valid = .true.
    endsubroutine compute_f0_view

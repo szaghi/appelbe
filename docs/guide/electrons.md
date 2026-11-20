@@ -53,6 +53,7 @@ Units: appelbe's $u = v/v_{Te}$ with $v_{Te} = \sqrt{2T_e/m_e}$. The slides use 
 |---|---|---|
 | TS spectrum | `ts_spectrum` | $S(w) = 2\pi\int_w^\infty f_0\,u\,du$, the projection of $f_0$ on the scattering vector (non-relativistic, incoherent) |
 | TS temperature | `ts_temperature(op, w_max)` | least squares of $\ln S = c - w^2/T$ on $w \le w_{\max}$ |
+| TS fit | `ts_fit(op, w_max, t, c)` | the same fit, with its intercept: the fitted spectrum is $e^{c - w^2/T}$ |
 | Energy moment | `kinetic_temperature` | $\tfrac23\langle u^2\rangle$ |
 | ECE (optically thick) | `slope_temperature` | $T(u) = -2u f_0/f_0'$, the local log-slope at the resonant energy |
 

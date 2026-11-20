@@ -144,7 +144,7 @@ Kinetic-solver design points that are not obvious from any single file:
 
 ## Validation status
 
-Measured on 2026-10-23. `fobis rule --ex tests` runs 176 checks (150 then; on 2026-11-20 `test_errors` added 24 and `test_electrons` 2, plus
+Measured on 2026-10-23. `fobis rule --ex tests` runs 178 checks (150 then; on 2026-11-20 `test_errors` added 24 and `test_electrons` 4, plus
 the expected failure `test_xfail_init_stop`), and all pass in both modes (`gnu-debug` traps FP
 overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). Also 150/150 with ifx 2026.2
 and nvfortran 26.9 (`static-intel`, `static-nvf`; 2026-11-19), after the nvfortran workaround in `solve_paper` (an
@@ -237,12 +237,13 @@ while ECE absorption reads f₀′. The physics goals of Luca Senni are not full
   Maxwellian. The driver `appelbe_electrons` and the GUI both call it (one source of the numbers; the driver's output is
   byte-identical to before the move, 2026-11-20).
 - **Readouts (`appelbe_eedf`):**
-  - `ts_spectrum` gives S(w) = 2π∫_w f₀u du; `ts_temperature(op, w_max)` fits a Gaussian to it.
+  - `ts_spectrum` gives S(w) = 2π∫_w f₀u du; `ts_temperature(op, w_max)` fits a Gaussian to it (`ts_fit` also gives the
+    intercept c: the fit is exp(c − w²/T)).
   - `kinetic_temperature` = (2/3)⟨u²⟩.
   - `slope_temperature` = −2u f₀/f₀′, the ECE readout for an optically thick plasma and a narrow resonance (not a
     forward model). It is degenerate near u = 0, where it tends to 0 whenever f₀′(0) ≠ 0, so the scans report it on
     1 ≤ u_L ≤ 4.
-- **Verified** (`test_electrons`, 32 checks):
+- **Verified** (`test_electrons`, 34 checks):
   - The general path with a Maxwellian converges to the closed forms at third order (2e-6 at 401 nodes).
   - In the Lorentz gas, σ and K ratios equal ∫u⁵f₀ and ∫u⁹f₀ to 1e-6; a Maxwellian at 1.1 T_e gives 1.1^{3/2}.
   - The bipolar f₀ matches its analytic form; tables reproduce the functions they sample.

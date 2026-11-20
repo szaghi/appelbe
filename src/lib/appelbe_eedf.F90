@@ -17,7 +17,7 @@ use appelbe_kinetic, only : kinetic_operator
 
 implicit none
 private
-public :: slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
+public :: slope_temperature, ts_spectrum, ts_fit, ts_temperature, kinetic_temperature
 
 real(R8P), parameter :: pi = acos(-1._R8P) !< Pi.
 
@@ -43,14 +43,16 @@ contains
    s = s / s(1)
    endfunction ts_spectrum
 
-   pure function ts_temperature(op, w_max) result(t)
-   !< Temperature from a Gaussian fit of the Thomson spectrum: least squares of ln S = c - w^2 / T over 0 <= w <= w_max.
-   type(kinetic_operator), intent(in) :: op     !< Operator, initialised.
-   real(R8P),              intent(in) :: w_max  !< Fit window in units of k v_Te (a Maxwellian gives T = 1 for any).
-   real(R8P)                          :: t      !< T / T_e.
-   real(R8P)                          :: s(op%grid%n), x(op%grid%n), y(op%grid%n) !< Spectrum, w^2, ln S.
-   real(R8P)                          :: xm, ym !< Means.
-   logical                            :: m(op%grid%n) !< Points in the window.
+   pure subroutine ts_fit(op, w_max, t, c)
+   !< Gaussian fit of the Thomson spectrum: least squares of ln S = c - w^2 / T over 0 <= w <= w_max; the fitted
+   !< spectrum is exp(c - w^2 / T) (c = 0 for a Maxwellian, whose S(w) = exp(-w^2) exactly).
+   type(kinetic_operator), intent(in)  :: op     !< Operator, initialised.
+   real(R8P),              intent(in)  :: w_max  !< Fit window in units of k v_Te (a Maxwellian gives T = 1 for any).
+   real(R8P),              intent(out) :: t      !< T / T_e.
+   real(R8P),              intent(out) :: c      !< Intercept: ln S of the fit at w = 0.
+   real(R8P)                           :: s(op%grid%n), x(op%grid%n), y(op%grid%n) !< Spectrum, w^2, ln S.
+   real(R8P)                           :: xm, ym !< Means.
+   logical                             :: m(op%grid%n) !< Points in the window.
 
    s = ts_spectrum(op)
    m = op%grid%u <= w_max .and. s > 0._R8P
@@ -60,6 +62,18 @@ contains
    xm = sum(x, mask=m) / count(m)
    ym = sum(y, mask=m) / count(m)
    t = -sum((x - xm)**2, mask=m) / sum((x - xm) * (y - ym), mask=m)
+   c = ym + xm / t
+   endsubroutine ts_fit
+
+   pure function ts_temperature(op, w_max) result(t)
+   !< Temperature from a Gaussian fit of the Thomson spectrum: least squares of ln S = c - w^2 / T over 0 <= w <= w_max
+   !< (ts_fit's T).
+   type(kinetic_operator), intent(in) :: op     !< Operator, initialised.
+   real(R8P),              intent(in) :: w_max  !< Fit window in units of k v_Te (a Maxwellian gives T = 1 for any).
+   real(R8P)                          :: t      !< T / T_e.
+   real(R8P)                          :: c      !< Intercept, unused.
+
+   call ts_fit(op, w_max, t, c)
    endfunction ts_temperature
 
    pure function kinetic_temperature(op) result(t)

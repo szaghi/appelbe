@@ -51,6 +51,20 @@ bin/gui/appelbe-gui --version
 `--remote PORT` is a fallback for a machine without a usable OpenGL 3: the program prints an address with an access
 token, and the interface runs in a web browser.
 
+## The panels
+
+| Window | Shows | From |
+|---|---|---|
+| Inputs | the $f_0$ (Maxwellian at $T/T_e$; bipolar $A$, $u_0$, $w$; a table from a file), $T_e$, $Z_i$, the fast-ion species, energy and $n_\alpha/n_e$, the grid | `gui_inputs` |
+| Electron f0 | $f_0$, the Maxwellian at $T_e$ and the one of the same energy ($T_{\text{kin}}$), log scale, against $u_L$ | `electron_profile` |
+| Diagnostics | $T_{TS}$ ($w \le 2$, $w \le 3$), $T_{\text{kin}}$, the range of $T_{\text{slope}}$ on $1 \le u_L \le 4$, the peak of $\delta f/f$ and $\delta f'/f'$ on $u_L \le 4$ against both Maxwellians; plots of $\delta f/f$ and $\delta f'/f'$, of $T_{\text{slope}}(u_L)$ with $T_{TS}$ and $T_{\text{kin}}$, of the TS spectrum $S(w)$ with its two Gaussian fits | `electron_profile`, `ts_fit`, `kinetic_temperature`, `slope_temperature` |
+| Transport | after **Solve** (a task, with progress and Cancel): the 12 changes of σ, κ, $j^\nu$, $\zeta^\nu$ (signed at $\omega\tau = 0$, of the modulus at the chosen $\omega\tau$, against the equal-energy Maxwellian at $\omega\tau = 0$); σ, β, κ, $j^\nu$ or $\zeta^\nu$ (⊥ or ∧) against $\omega\tau$ for the three $f_0$, and the change of the modulus against both Maxwellians; the $f_1$ of each unit drive | `electron_readouts`, `kinetic_operator%response`, `electron_f1` |
+
+The $f_0$ panels follow every input at once. The Transport panel shows the last complete solve; when the inputs change
+afterwards it says so (*the inputs changed since this solve*) until **Solve** is pressed again. A cancelled solve keeps
+the previous one. The TS fit curve is $\exp(c - w^2/T)$ with $T$ and $c$ from `ts_fit` (the intercept is not part of
+`ts_temperature`'s result, so the library gives it: `ts_fit(op, w_max, t, c)`).
+
 ## Architecture
 
 ```mermaid
@@ -128,6 +142,7 @@ a snapshot of the GUI's own output.
 | Test | Checks |
 |---|---|
 | `test_gui_task` | a `solve_job` run as a task equals the same job on the main thread bit for bit (readouts, $f_1$, every response), with two tasks and the main thread computing at once; the readouts and a response equal `electron_readouts` and `kinetic_operator%response` called directly; a cancel stops the task early with consistent data; a rejected input fails the job with the library's message, no stop |
+| `test_gui_panels` | inputs typed into the fields; every number of Diagnostics and Transport read from its field as shown, against `ts_temperature`, `kinetic_temperature`, `slope_temperature`, the peaks of $f_0/f_M - 1$ from the operators, `electron_readouts` (to the field's last digit); the arrays the plots read (the equal-energy profile, the TS fit, $f_1$, the chosen quantity against $\omega\tau$ after a combo and a radio button) against `electron_profile`, `ts_fit`, `electron_f1`, `kinetic_operator%response`, bit for bit; Solve, a stale mark after an input change, Cancel keeping the last solve |
 | `test_gui_f0` | the windows are drawn, no id conflict, every interactive item named; the default $f_0$ is the driver's; $A$, $w$, $T_e$ typed into the fields give the library's $f_0$, grid and $u_\alpha$; the equal-energy Maxwellian; a rejected input is a message and the view comes back; a table is read, a missing one reported |
 
 ```bash

@@ -6,7 +6,7 @@ program test_gui_task
 !< thread must give the result of the direct call bit for bit, even with two tasks and the main thread computing at
 !< once. The reference is solve_job%step run to the end on the main thread, and, for the readouts and one response,
 !< the library's own procedures called directly (electron_readouts, kinetic_operator%response).
-use, intrinsic :: iso_fortran_env, only : int32, real64
+use, intrinsic :: iso_fortran_env, only : int32, int64, real64
 use penf,                          only : I4P, R8P
 use figure,                        only : app_object, FIG_OK, task_object
 use appelbe,                       only : kinetic_operator, kinetic_response, electron_bipolar, electron_readouts, &
@@ -24,7 +24,8 @@ class(*), allocatable    :: data             !< A task's result.
 type(kinetic_operator)   :: ob, om           !< Direct library calls.
 type(kinetic_response)   :: rm(2), rb        !< Their responses.
 real(R8P)                :: o(n_readouts)    !< Their readouts.
-integer(int32)           :: stat, k, frames  !< Status, counters.
+integer(int32)           :: stat, k          !< Status, counter.
+integer(int64)           :: c0, c, rate      !< Clock.
 
 call app%init_headless(800_int32, 600_int32)
 inp(1)%n_nodes = 401_I4P                     ! the reference case on 401 nodes (bit identity does not depend on n)
@@ -45,11 +46,11 @@ do k = 1, 2
    enddo
    call check('main-thread reference finished without failure', .not. ref(k)%failed)
 enddo
-frames = 0
+call system_clock(c0, rate)
 do while ((.not. t(1)%done()) .or. (.not. t(2)%done()))
    if (.not. app%next_frame()) exit
-   frames = frames + 1
-   if (frames > 200000) exit
+   call system_clock(c)
+   if (c - c0 > 600_int64 * rate) exit ! 10 minutes of wall time: the debug build is slow
 enddo
 do k = 1, 2
    call t(k)%result(data, stat=stat)

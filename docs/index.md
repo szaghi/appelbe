@@ -40,7 +40,7 @@ features:
     linkText: Magnetised plasma
   - icon: ✅
     title: Verified
-    details: Epperlein–Haines coefficients to four digits, the exact Lorentz limits, Onsager symmetry to 5e-8, second-order grid convergence; 176 checks in every build mode.
+    details: Epperlein–Haines coefficients to four digits, the exact Lorentz limits, Onsager symmetry to 5e-8, second-order grid convergence; 178 checks in every build mode.
     link: /guide/validation
     linkText: Verification
   - icon: 🔍
@@ -93,7 +93,7 @@ fobis fetch                      # PENF, the only dependency
 fobis build --mode static-gnu    # lib/libappelbe.a and lib/mod/*.mod: use appelbe
 fobis build --mode gnu           # the drivers into bin/
 fobis build --mode tests-gnu     # the tests into exe/
-fobis rule --ex tests            # 176 checks
+fobis rule --ex tests            # 178 checks
 fobis rule --ex figures          # reproduce the paper: results/*.dat
 ```
 

@@ -17,7 +17,7 @@ use penf,                  only : I4P, R8P
 use appelbe_assert,        only : assert_close, assert_summary
 use appelbe_constants,     only : m_e, m_alpha, keV_J, MeV_J
 use appelbe_distributions, only : electron_maxwellian, electron_bipolar, electron_table, electron_table_params
-use appelbe_eedf,          only : slope_temperature, ts_temperature, kinetic_temperature
+use appelbe_eedf,          only : slope_temperature, ts_fit, ts_temperature, kinetic_temperature
 use appelbe_electron_study, only : n_readouts, electron_readouts, electron_profile
 use appelbe_kinetic,       only : kinetic_params, kinetic_operator, kinetic_response
 use appelbe_plasma,        only : speed_ratio
@@ -58,6 +58,13 @@ call assert_close('Maxwellian slope temperature',   maxval(abs(t - 1._R8P)), 0._
 call assert_close('Maxwellian TS fit, w <= 2',      ts_temperature(om, 2._R8P), 1._R8P, rel_tol=1.e-5_R8P)
 call assert_close('Maxwellian TS fit, w <= 3',      ts_temperature(om, 3._R8P), 1._R8P, rel_tol=1.e-5_R8P)
 call assert_close('Maxwellian kinetic temperature', kinetic_temperature(om),    1._R8P, rel_tol=1.e-5_R8P)
+block
+   real(R8P) :: tf, cf !< ts_fit's temperature and intercept.
+
+   call ts_fit(om, 2._R8P, tf, cf)
+   call assert_close('Maxwellian TS fit intercept (S = exp(-w^2))', cf, 0._R8P, rel_tol=0._R8P, abs_tol=1.e-8_R8P)
+   call assert_close('ts_fit T = ts_temperature, bit for bit', tf - ts_temperature(om, 2._R8P), 0._R8P, rel_tol=0._R8P)
+endblock
 
 ! bipolar distortion against its analytic form
 call ob%init(par=par, n_nodes=801_I4P, electrons=electron_bipolar, electron_params=bip)

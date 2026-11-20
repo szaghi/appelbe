@@ -9,7 +9,7 @@ use appelbe_constants,     only : pi, sqrt_pi, e_charge, m_e, eps0, amu, keV_J, 
                                   m_proton, m_alpha, m_carbon12, m_DT
 use appelbe_distributions, only : energy_gaussian, energy_flat, slowing_down, electron_maxwellian, electron_bipolar, &
                                   electron_table, electron_table_params, electron_table_check
-use appelbe_eedf,          only : slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
+use appelbe_eedf,          only : slope_temperature, ts_spectrum, ts_fit, ts_temperature, kinetic_temperature
 use appelbe_electron_study, only : n_readouts, ts_windows, ece_window, profile_header, f1_header, readouts_header, &
                                    scan_header, electron_profile, electron_f1, electron_readouts, electron_scan_row, &
                                    scan_value, write_table, write_scan_row
@@ -36,7 +36,7 @@ public :: energy_gaussian, energy_flat, slowing_down, electron_maxwellian, elect
 ! tabulated input (two columns, '#' comments)
 public :: read_table
 ! what Thomson scattering and ECE read from the electron f0
-public :: slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
+public :: slope_temperature, ts_spectrum, ts_fit, ts_temperature, kinetic_temperature
 ! the study of a non-Maxwellian f0 against the Maxwellian (the driver appelbe_electrons and the GUI)
 public :: n_readouts, ts_windows, ece_window, profile_header, f1_header, readouts_header, scan_header, &
           electron_profile, electron_f1, electron_readouts, electron_scan_row, scan_value, write_table, write_scan_row
