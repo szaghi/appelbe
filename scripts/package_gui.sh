@@ -90,10 +90,15 @@ echo "$deps" | sed 's/^/  /'
 
 # README, the example table, the licences
 readme="$stage/README.txt"
-{
-  sed -e "s|@VERSION@|$version|g" -e "s|@PLATFORM@|$platform $arch|g" src/gui/share/README.txt \
-    | awk -v start="$start" -v req="$requirement" '/^@START@$/ {print "Requires: " req; print ""; print start; next} {print}'
-} > "$readme"
+# a plain loop, not awk -v: macOS's awk refuses a value of several lines (the start-up steps)
+sed -e "s|@VERSION@|$version|g" -e "s|@PLATFORM@|$platform $arch|g" src/gui/share/README.txt \
+  | while IFS= read -r line; do
+      if [ "$line" = "@START@" ]; then
+        printf 'Requires: %s\n\n%s\n' "$requirement" "$start"
+      else
+        printf '%s\n' "$line"
+      fi
+    done > "$readme"
 mkdir -p "$stage/examples" "$stage/licenses/appelbe" "$stage/licenses/figure"
 cp src/gui/share/f0_two_temperature.dat "$stage/examples/"
 cp LICENSE.gpl3.md "$stage/licenses/appelbe/"
