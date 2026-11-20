@@ -82,9 +82,10 @@ status 0 only if each check passes: the smoke test of a package, run where nothi
 (Homebrew's gfortran 16 through `setup-fortran`, the native layer with Apple clang, `MACOSX_DEPLOYMENT_TARGET=15.0`) and
 Windows (MSYS2 UCRT64): fetch, headless tests, release build, package, artifact; then each package unpacked on a clean
 runner and `--self-test`ed: a bare `debian:13` container, a macOS runner with `/opt/homebrew` moved away, a Windows
-runner with only `C:\Windows` on `PATH`. It runs on pushes that change the GUI or its packaging, by hand, and from
-`release.yml` on a tag, whose `gui-assets` job attaches the three archives to the release (a dispatch from a branch
-builds them as artifacts only: a dry run). The Linux package needs glibc 2.38 or newer: the newest symbol versions it uses
+runner with only `C:\Windows` on `PATH`. Linux runs on pushes that change the GUI or its packaging, by hand and on tags;
+macOS and Windows (10x and 2x the minutes on a private repository) only on tags, from `release.yml`, whose
+`gui-assets` job attaches the three archives to the release, or by hand with `gh workflow run GUI -f all_platforms=true`.
+A dispatch of `release.yml` from a branch is a dry run: artifacts only, Linux only. The Linux package needs glibc 2.38 or newer: the newest symbol versions it uses
 (`fmod`, the C23 `strtol` family of the static libgfortran) are 2.38's, whether built in the Debian 13 image (glibc 2.41)
 or on Ubuntu 24.04 (2.39); measured by the script on both, 2026-11-20.
 

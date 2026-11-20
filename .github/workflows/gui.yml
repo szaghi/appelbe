@@ -5,8 +5,10 @@ name: GUI
 # a solve and a scan on worker threads, a PNG). Project-owned, not managed by fobis scaffold. The packages are uploaded
 # as artifacts; release.yml calls this workflow on a tag and attaches them to the release.
 #
-# Cost: on a private repository macOS minutes count 10x and Windows 2x: the workflow runs on tags (from release.yml),
-# by hand, and on pushes and pull requests that change the GUI, its build or its packaging.
+# Cost: on a private repository macOS minutes count 10x and Windows 2x. Linux runs on pushes and pull requests that
+# change the GUI, its build or its packaging, by hand, and on tags; macOS and Windows only on tags (release.yml calls
+# this workflow with github.ref = refs/tags/vX.Y.Z), or by hand with all_platforms (gh workflow run GUI -f
+# all_platforms=true). A dispatch of release.yml from a branch (its dry run) therefore packages Linux only.
 on:
   push:
     branches: ["**"]
@@ -15,6 +17,12 @@ on:
   pull_request:
     paths: ['src/gui/**', 'fobos-gui', 'scripts/package_gui.sh', 'scripts/run_gui_tests.sh', '.github/workflows/gui.yml']
   workflow_dispatch:
+    inputs:
+      all_platforms:
+        description: 'also build, test and package macOS and Windows (otherwise only on tags)'
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       ref:
@@ -74,6 +82,7 @@ jobs:
   # the target is refused below)
   macos:
     name: macOS arm64 (build, tests, package)
+    if: startsWith(github.ref, 'refs/tags/') || inputs.all_platforms
     runs-on: macos-15
     env:
       MACOSX_DEPLOYMENT_TARGET: '15.0'
@@ -129,6 +138,7 @@ jobs:
   # Windows: MSYS2 UCRT64 (FIGURE's Platforms workflow); the release build is -static (fobos-gui's varset windows)
   windows:
     name: Windows x86_64 (build, tests, package)
+    if: startsWith(github.ref, 'refs/tags/') || inputs.all_platforms
     runs-on: windows-latest
     defaults:
       run:

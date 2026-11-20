@@ -8,7 +8,8 @@ name: Release appelbe
 #
 # The GUI (issue #2): gui.yml builds, tests and packages appelbe-gui for Linux, macOS and Windows at the tag and
 # smoke-tests each package on a clean runner; gui-assets then attaches the three archives to the release. A dispatch
-# from a branch is a dry run: the packages are built and kept as the run's artifacts, nothing is attached.
+# from a branch is a dry run: the Linux package only (gui.yml builds macOS and Windows on tags), kept as the run's
+# artifact, nothing attached.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
