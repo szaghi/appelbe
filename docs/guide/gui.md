@@ -64,7 +64,7 @@ links the compiler's runtime statically, then `scripts/package_gui.sh` makes the
 | Platform | Archive | Static in the program | From the system |
 |---|---|---|---|
 | Linux x86_64 | `appelbe-gui-vX.Y.Z-linux-x86_64.tar.gz` | libgfortran, libquadmath, libgcc, libstdc++ (`-l:libstdc++.a`), SDL3 | glibc; X11/Wayland and OpenGL, opened by SDL3 at run time |
-| macOS arm64 | `appelbe-gui-vX.Y.Z-macos-arm64.zip` (`appelbe-gui.app`) | libgfortran, libgcc, SDL3 | libc++, libobjc, libiconv, the frameworks, OpenGL |
+| macOS arm64 | `appelbe-gui-vX.Y.Z-macos-arm64.zip` (`appelbe-gui.app`) | libgfortran, libquadmath, libgcc, SDL3 | libc++, libobjc, libiconv, the frameworks, OpenGL |
 | Windows x86_64 | `appelbe-gui-vX.Y.Z-windows-x86_64.zip` | everything MinGW (`-static`) | the Windows DLLs, OpenGL (`opengl32`) |
 
 The script refuses to package a program that loads a library of the build machine: `ldd` may list only glibc's

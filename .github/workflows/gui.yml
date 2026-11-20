@@ -52,6 +52,7 @@ jobs:
         bash scripts/run_gui_tests.sh exe/gui
     - name: Release build and package
       run: |
+        set -o pipefail   # tee must not hide a failed build or a refused package
         fobis build -f fobos-gui --mode gui-release-gnu
         bash scripts/package_gui.sh | tee package.log
         echo "ARCHIVE=$(tail -n 1 package.log)" >> "$GITHUB_ENV"
@@ -105,6 +106,7 @@ jobs:
         bash scripts/run_gui_tests.sh exe/gui
     - name: Release build and package
       run: |
+        set -o pipefail   # tee must not hide a failed build or a refused package
         fobis build -f fobos-gui --mode gui-release-gnu --varset macos 2>&1 | tee build-release.log
         if grep -q "was built for newer macOS version" build-release.log; then
           echo "objects built for a newer macOS than $MACOSX_DEPLOYMENT_TARGET: the minimum would be wrong"; exit 1
@@ -154,6 +156,7 @@ jobs:
         bash scripts/run_gui_tests.sh exe/gui
     - name: Release build and package
       run: |
+        set -o pipefail   # tee must not hide a failed build or a refused package
         fobis build -f fobos-gui --mode gui-release-gnu --varset windows
         bash scripts/package_gui.sh | tee package.log
         echo "ARCHIVE=$(tail -n 1 package.log)" >> "$GITHUB_ENV"

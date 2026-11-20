@@ -31,8 +31,9 @@ $NATIVE_LFLAGS  =
 $RELEASE_LIBS   = figure_native SDL3 :libstdc++.a dl pthread m
 $RELEASE_LFLAGS = -static-libgfortran -static-libquadmath -static-libgcc
 
-# macOS: libc++, libobjc, libiconv and the frameworks are the system's; libgfortran and libgcc static (Homebrew's gcc
-# ships the archives), so no /opt/homebrew path remains (otool -L, scripts/package_gui.sh checks it)
+# macOS: libc++, libobjc, libiconv and the frameworks are the system's; libgfortran, libquadmath and libgcc static
+# (Homebrew's gcc ships the archives; without -static-libquadmath libgfortran pulls Homebrew's libquadmath.0.dylib), so
+# no /opt/homebrew path remains (otool -L, scripts/package_gui.sh checks it)
 [varset:macos]
 $NATIVE_LIBS    = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
 $NATIVE_LFLAGS  = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
@@ -41,7 +42,7 @@ $NATIVE_LFLAGS  = -framework Cocoa -framework Carbon -framework Foundation -fram
 $RELEASE_LIBS   = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
 $RELEASE_LFLAGS = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
                   -framework IOKit -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers
-                  -framework AVFoundation -static-libgfortran -static-libgcc
+                  -framework AVFoundation -static-libgfortran -static-libquadmath -static-libgcc
 
 # Windows (MSYS2 UCRT64): -static, every MinGW runtime (libgfortran, libquadmath, libgcc, libstdc++, winpthread) in
 # the .exe; the Windows DLLs (kernel32, user32, opengl32 loaded by SDL3, ...) are the system's
