@@ -11,7 +11,7 @@ libraries. The archive holds the program, a `README.txt`, an example $f_0$ table
 
 | System | Archive | Needs |
 |---|---|---|
-| macOS, Apple Silicon (M1 and later) | `appelbe-gui-vX.Y.Z-macos-arm64.zip` | macOS 14 Sonoma or newer |
+| macOS, Apple Silicon (M1 and later) | `appelbe-gui-vX.Y.Z-macos-arm64.zip` | macOS 15 Sequoia or newer |
 | Windows | `appelbe-gui-vX.Y.Z-windows-x86_64.zip` | Windows 10 or 11, 64-bit |
 | Linux | `appelbe-gui-vX.Y.Z-linux-x86_64.tar.gz` | 64-bit, glibc 2.38 or newer (Debian 13, Ubuntu 24.04, Fedora 39 and later), a desktop with X11 or Wayland |
 

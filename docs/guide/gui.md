@@ -78,8 +78,8 @@ FIGURE builds in (Dear ImGui, ImPlot, cimgui, cimplot, miniz: MIT; SDL3: zlib; I
 `appelbe-gui --self-test` runs, headless, every panel, a solve and a scan on worker threads and a PNG, and exits with
 status 0 only if each check passes: the smoke test of a package, run where nothing else is installed.
 
-**CI** (`.github/workflows/gui.yml`, project-owned): on Linux (the `gnu-16.2-gui` toolchain image), macOS 14 arm64
-(Homebrew's gfortran 16 through `setup-fortran`, the native layer with Apple clang, `MACOSX_DEPLOYMENT_TARGET=14.0`) and
+**CI** (`.github/workflows/gui.yml`, project-owned): on Linux (the `gnu-16.2-gui` toolchain image), macOS 15 arm64
+(Homebrew's gfortran 16 through `setup-fortran`, the native layer with Apple clang, `MACOSX_DEPLOYMENT_TARGET=15.0`) and
 Windows (MSYS2 UCRT64): fetch, headless tests, release build, package, artifact; then each package unpacked on a clean
 runner and `--self-test`ed: a bare `debian:13` container, a macOS runner with `/opt/homebrew` moved away, a Windows
 runner with only `C:\Windows` on `PATH`. It runs on pushes that change the GUI or its packaging, by hand, and from

@@ -225,7 +225,7 @@ Help = `docs/guide/gui-user.md` compiled in (one source, `scripts/gui_help.py`);
 **Packaging** (`gui-release-gnu`, `scripts/package_gui.sh`, `.github/workflows/gui.yml`; release.yml's `gui`,
 `gui-assets` attach the archives on a tag): the compiler runtime static; the script refuses a program that loads a
 build-machine library and writes the measured minimum OS/glibc into the README. Linux needs glibc 2.38 (built in the
-Debian 13 image or on the Ubuntu 24.04 host alike: the newest symbols used are 2.38's). macOS: arm64, deployment target 14.0, ad-hoc signed, unsigned by Apple
+Debian 13 image or on the Ubuntu 24.04 host alike: the newest symbols used are 2.38's). macOS: arm64, deployment target 15.0 (macos-15 runner; GitHub dropped macos-14), ad-hoc signed, unsigned by Apple
 (*Open Anyway*). Nothing of the macOS/Windows packaging has run yet as of 2026-11-20 (no CI run without a push).
 
 ## Non-Maxwellian electrons (beyond the paper)

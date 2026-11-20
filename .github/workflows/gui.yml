@@ -68,13 +68,14 @@ jobs:
         if-no-files-found: error
 
   # macOS arm64: Homebrew's gfortran 16 (setup-fortran), the native layer with Apple clang (SDL needs it; libc++),
-  # libgfortran and libgcc linked statically (fobos-gui's varset macos), deployment target 14.0 (the Sonoma bottles of
-  # Homebrew's gcc on this runner: linking objects built for a newer macOS is refused below)
+  # libgfortran and libgcc linked statically (fobos-gui's varset macos), deployment target 15.0 (the Sequoia bottles of
+  # Homebrew's gcc on this runner; macos-14 runners are no longer offered: linking objects built for a newer macOS than
+  # the target is refused below)
   macos:
     name: macOS arm64 (build, tests, package)
-    runs-on: macos-14
+    runs-on: macos-15
     env:
-      MACOSX_DEPLOYMENT_TARGET: '14.0'
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
     steps:
     - uses: actions/checkout@v4
       with:
@@ -189,7 +190,7 @@ jobs:
   smoke-macos:
     name: macOS package without Homebrew
     needs: macos
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
     - uses: actions/download-artifact@v4
       with:
