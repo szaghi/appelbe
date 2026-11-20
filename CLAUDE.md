@@ -23,18 +23,20 @@ The goals are simplicity and maintainability, not performance: dense matrices, n
 
 ```bash
 fobis fetch                       # clone PENF into src/third_party/ (the only dependency)
-fobis build --mode gnu            # -O2; builds every program under src/ into exe/ (no single target)
+fobis build --mode gnu            # -O2; the drivers src/app/appelbe_* into bin/ (no single target)
 fobis build --mode gnu-debug      # -fcheck=all, FP traps (invalid, zero, overflow), -finit-real=snan
-fobis rule --ex tests             # scripts/run_tests.sh: runs every exe/test_*, stops on first failure
-fobis rule --ex figures           # scripts/make_figures.sh: every exe/appelbe_* -> results/, then gnuplot previews
+fobis build --mode tests-gnu      # the tests src/tests/test_* into exe/ (tests-gnu-debug: debug flags)
+fobis rule --ex tests             # scripts/run_tests.sh (scaffold-managed): runs every executable in exe/, PASS/FAIL each
+fobis rule --ex makecoverage-analysis  # what CI runs: tests-gnu-debug with coverage, docs/public/coverage.json
+fobis rule --ex figures           # scripts/make_figures.sh: every bin/appelbe_* -> results/, then gnuplot previews
 fobis rule --ex report            # make_report.sh: report/generated/*.tex, report/appelbe_report.pdf, docs/public/figures/*.svg
 fobis build --mode static-gnu     # the library alone: lib/libappelbe.a + lib/mod (use appelbe, the umbrella module)
 fobis rule --ex docs-examples     # scripts/docs_examples.py: build/run docs/examples/src -> snippets/, output/
 cd docs && npm install && npm run docs:dev   # the VitePress site (formal regenerates docs/api/ first)
 python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PDFs in references/ (needs mutool)
 ./exe/test_fits                   # run one test program directly
-./exe/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
-./exe/appelbe_electrons f0.dat    # tabulated electron f0 (columns u_L, f0): readouts printed, results/electrons_table_*
+./bin/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
+./bin/appelbe_electrons f0.dat    # tabulated electron f0 (columns u_L, f0): readouts printed, results/electrons_table_*
 ```
 
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
@@ -139,7 +141,9 @@ Kinetic-solver design points that are not obvious from any single file:
 ## Validation status
 
 Measured on 2026-10-23. `fobis rule --ex tests` runs 150 checks, and all pass in both modes (`gnu-debug` traps FP
-overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). The full comparison is in
+overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). Also 150/150 with ifx 2026.2
+and nvfortran 26.9 (`static-intel`, `static-nvf`; 2026-11-19), after the nvfortran workaround in `solve_paper` (an
+explicit `allocate` instead of `b = rhs(2:n-1, :)`, which nvfortran miscompiles there). The full comparison is in
 `report/appelbe_report.pdf`; the key results:
 
 - **Conventional coefficients, Z = 1:** α∥ = 0.5061, β∥ = 0.7029, κ∥ = 3.2031, the Epperlein–Haines (1986)

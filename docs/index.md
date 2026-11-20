@@ -91,7 +91,8 @@ other force vanishes. Lines are this code; circles are the paper's Fig. 1, read 
 ```bash
 fobis fetch                      # PENF, the only dependency
 fobis build --mode static-gnu    # lib/libappelbe.a and lib/mod/*.mod: use appelbe
-fobis build --mode gnu           # every driver and test into exe/
+fobis build --mode gnu           # the drivers into bin/
+fobis build --mode tests-gnu     # the tests into exe/
 fobis rule --ex tests            # 150 checks
 fobis rule --ex figures          # reproduce the paper: results/*.dat
 ```

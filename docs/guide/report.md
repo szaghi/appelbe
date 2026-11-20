@@ -10,7 +10,7 @@ hand.
 ```mermaid
 flowchart LR
   pdf[references/*.pdf] -->|digitize_paper.py| data[report/data/*.dat]
-  drivers[exe/appelbe_*] -->|fobis rule --ex figures| results[results/*.dat]
+  drivers[bin/appelbe_*] -->|fobis rule --ex figures| results[results/*.dat]
   data --> numbers[report_numbers.py]
   results --> numbers
   numbers --> gen[report/generated/*.tex, *.dat]

@@ -1,6 +1,7 @@
 references/*
-# build artifacts (fobis build: objects and modules land under exe/)
+# build artifacts (fobis build: tests in exe/, drivers in bin/, each with its objects and modules)
 exe/
+/bin/
 mod/
 obj/
 # the static library (fobis build --mode static-gnu) and scratch builds (scripts/docs_examples.py)
@@ -27,3 +28,10 @@ docs/node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 docs/api/
+# coverage (fobis rule --ex makecoverage-analysis; CI packs them for the docs)
+*.gcov
+*.gcda
+*.gcno
+docs/public/coverage.json
+docs/guide/coverage-analysis.md
+docs/guide/*.gcov.md

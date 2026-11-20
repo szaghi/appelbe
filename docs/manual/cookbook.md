@@ -96,7 +96,7 @@ $f_0$, with any normalisation and `#` comments allowed. `read_table` reads it an
 The table must start at $u_L = 0$, increase strictly and be positive. Beyond its last row $\ln f$ continues linearly,
 so the table must already decay there (`init` stops if $f_0$ does not vanish at `u_max`). Rows a few hundredths of
 $\sqrt{m_eT_e}$ apart resolve a Maxwellian to $10^{-9}$. The driver does the same from the command line:
-`./exe/appelbe_electrons f0.dat` writes `results/electrons_table_{profile,f1}.dat` and prints the TS and ECE readouts
+`./bin/appelbe_electrons f0.dat` writes `results/electrons_table_{profile,f1}.dat` and prints the TS and ECE readouts
 and the transport changes ([Non-Maxwellian electrons](/guide/electrons)).
 
 ## Closures for a fluid code
@@ -143,7 +143,7 @@ the fast-ion density is not negligible, and integrate over the fast-ion spectrum
 
 ```bash
 fobis build --mode gnu
-fobis rule --ex figures          # every exe/appelbe_* -> results/*.dat, previews results/*.png (about 4 minutes)
+fobis rule --ex figures          # every bin/appelbe_* -> results/*.dat, previews results/*.png (about 4 minutes)
 fobis rule --ex report           # report/appelbe_report.pdf
 ```
 
@@ -170,7 +170,7 @@ python3 scripts/digitize_paper.py     # report/data/*.dat, read from the vector 
 ### Add a driver
 
 A driver is a program `src/app/appelbe_<name>.F90` that writes `results/<name>.dat` with `open_results` (one `#` header
-line). `fobis build --mode gnu` builds it, `fobis rule --ex figures` runs every `exe/appelbe_*`. Add its comparison to
+line). `fobis build --mode gnu` builds it, `fobis rule --ex figures` runs every `bin/appelbe_*`. Add its comparison to
 `scripts/report_numbers.py` and its figure to `report/appelbe_report.tex` ([Report pipeline](/guide/report)).
 
 ### Run with runtime checks

@@ -961,7 +961,8 @@ Maxwellian of equal energy.}
 \appendix
 \section{Reproducing this report}
 \begin{verbatim}
-fobis fetch && fobis build --mode gnu  # PENF, all programs into exe/
+fobis fetch && fobis build --mode gnu  # PENF, the drivers into bin/
+fobis build --mode tests-gnu           # the tests into exe/
 fobis rule --ex tests                  # verification suite
 fobis rule --ex figures                # drivers -> results/*.dat
 fobis rule --ex report                 # tables + report/appelbe_report.pdf

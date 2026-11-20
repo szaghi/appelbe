@@ -1,0 +1,27 @@
+name: CI
+
+# The tests with coverage in the project's toolchain image, by the reusable workflow of fortran-toolchains
+# (https://github.com/szaghi/fortran-toolchains): FoBiS.py fetch when the project has dependencies, then
+# FoBiS.py rule --ex makecoverage-analysis; on a push to the default branch the coverage outputs under docs/ are
+# packed for docs.yml (the coverage-docs artifact). Managed by fobis scaffold: set the fobos [scaffold] keys
+# (toolchain, toolchain_packages), then fobis scaffold sync.
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]   # a release tag points at a commit already tested on its branch push
+  pull_request:
+
+# a newer push to the same ref supersedes the running checks
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: szaghi/fortran-toolchains/.github/workflows/test.yml@v1
+    with:
+      toolchain: 'linux-gnu'
+      apt-packages: ''

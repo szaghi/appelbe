@@ -6,7 +6,7 @@
 [![GitHub tag](https://img.shields.io/github/v/tag/szaghi/appelbe)](https://github.com/szaghi/appelbe/tags)
 [![Docs](https://img.shields.io/badge/docs-vitepress-orange)](https://szaghi.github.io/appelbe/)
 [![GitHub issues](https://img.shields.io/github/issues/szaghi/appelbe)](https://github.com/szaghi/appelbe/issues)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://github.com/szaghi/appelbe/blob/main/LICENSE.md)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://github.com/szaghi/appelbe/blob/main/LICENSE.gpl3.md)
 
 | 🧮 **Simple-algebraic closure**<br>Appendix C fits of the collisionally induced current `j⁰_eα` and heat flow `ζ_eα` (α in DT) | ⚛️ **Kinetic solver**<br>Linearised electron `f₁` equation (Eq. 13) with e–e, e–i and e–fast-ion Fokker–Planck operators | 🔀 **Two solution methods**<br>The paper's Appendix B procedure (`GG + Ω²`) and an equivalent complex form `(G + iωτ) f₁ = g₇` | ✅ **Verified**<br>Epperlein–Haines Z=1 coefficients to 4 digits, exact Lorentz limits, Onsager symmetry to 5e-8 |
 |:---:|:---:|:---:|:---:|
@@ -26,7 +26,7 @@ The **[documentation](https://szaghi.github.io/appelbe/)** has a tutorial, a coo
 
 ## Copyrights
 
-This project is distributed under the [GNU General Public License v3](http://www.gnu.org/licenses/gpl-3.0.html) — see [LICENSE.md](LICENSE.md).
+This project is distributed under the [GNU General Public License v3](http://www.gnu.org/licenses/gpl-3.0.html) — see [LICENSE.gpl3.md](LICENSE.gpl3.md).
 
 > Anyone interested in using, developing, or contributing to this project is welcome, under the terms of the GPL v3.
 
@@ -39,7 +39,8 @@ The reference paper is **not** distributed: `references/` is git-ignored because
 ```bash
 git clone https://github.com/szaghi/appelbe && cd appelbe
 fobis fetch                   # PENF into src/third_party/
-fobis build --mode gnu        # every program under src/ into exe/
+fobis build --mode gnu        # the drivers (src/app) into bin/
+fobis build --mode tests-gnu  # the tests (src/tests) into exe/
 fobis build --mode static-gnu # the library alone: lib/libappelbe.a, use appelbe
 fobis rule --ex tests         # verification suite (150 checks)
 fobis rule --ex figures       # all drivers -> results/*.dat + gnuplot previews results/*.png

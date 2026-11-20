@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run every reproduction driver built by `fobis build` (exe/appelbe_*) and plot results/ with gnuplot.
+# Run every reproduction driver built by `fobis build` (bin/appelbe_*) and plot results/ with gnuplot.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for d in exe/appelbe_*; do
+for d in bin/appelbe_*; do
   echo "== $d"
   "./$d"
 done

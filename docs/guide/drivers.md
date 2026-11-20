@@ -5,7 +5,7 @@ title: Drivers and results
 # Drivers and results
 
 One program per figure or section, `src/app/appelbe_*.F90`, writes plain tables to `results/` (one `#` header line
-naming the columns). `fobis rule --ex figures` builds nothing: it runs every `exe/appelbe_*` and then the gnuplot
+naming the columns). `fobis rule --ex figures` builds nothing: it runs every `bin/appelbe_*` and then the gnuplot
 previews `scripts/*.gp` into `results/*.png`. The whole run takes about four minutes.
 
 Complex quantities are written as two columns, $\perp$ then $\wedge$. "Paper grid" columns are the same computation with

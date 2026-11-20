@@ -1,0 +1,25 @@
+name: Release appelbe
+
+# A pushed vX.Y.Z tag: the GitHub release (the source tarball, the tag's CHANGELOG.md section as the notes,
+# scripts/install.sh), then the release installed on a fresh runner by install.yml, by the reusable workflows of
+# fortran-toolchains (https://github.com/szaghi/fortran-toolchains). Managed by fobis scaffold.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:   # from a tag; from a branch the release job does nothing
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: szaghi/fortran-toolchains/.github/workflows/release.yml@v1
+
+  # run from here: a release published with GITHUB_TOKEN starts no workflow, so `release: published` never fires
+  install:
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/install.yml
+    with:
+      tag: ${{ github.ref_name }}

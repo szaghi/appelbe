@@ -25,15 +25,18 @@ Only the compiler, FoBiS and PENF are needed to use the library.
 git clone https://github.com/szaghi/appelbe && cd appelbe
 fobis fetch                      # PENF into src/third_party/
 fobis build --mode static-gnu    # the library: lib/libappelbe.a, modules in lib/mod/
-fobis build --mode gnu           # every program under src/ (drivers, tests) into exe/
+fobis build --mode gnu           # the drivers (src/app/appelbe_*) into bin/
+fobis build --mode tests-gnu     # the tests (src/tests/test_*) into exe/
 fobis rule --ex tests            # the verification suite
 ```
 
 | Mode | Flags | Builds |
 |------|-------|--------|
 | `static-gnu` | `-O2` | `lib/libappelbe.a` and `lib/mod/*.mod` |
-| `gnu` | `-O2` | every program under `src/` into `exe/`: drivers `appelbe_*`, tests `test_*` |
+| `static-intel`, `static-nvf` | `-O2` | the same with ifx or nvfortran (the modes of `scripts/install.sh`) |
+| `gnu` | `-O2` | the drivers `src/app/appelbe_*` into `bin/` |
 | `gnu-debug` | `-O0 -g3 -fcheck=all -ffpe-trap=invalid,zero,overflow -finit-real=snan` | the same, with runtime checks |
+| `tests-gnu`, `tests-gnu-debug` | as `gnu`, `gnu-debug` | the tests `src/tests/test_*` into `exe/` (`fobis rule --ex tests` runs every executable there) |
 
 ```bash
 fobis build --lmodes             # list the modes

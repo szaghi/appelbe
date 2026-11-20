@@ -27,8 +27,8 @@ One program per figure or section writes `results/*.dat`:
 
 ```bash
 fobis build --mode gnu
-fobis rule --ex figures          # every exe/appelbe_* -> results/, gnuplot previews results/*.png
-./exe/appelbe_fig5               # or one of them
+fobis rule --ex figures          # every bin/appelbe_* -> results/, gnuplot previews results/*.png
+./bin/appelbe_fig5               # or one of them
 ```
 
 | Driver | Reproduces |

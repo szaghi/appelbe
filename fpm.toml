@@ -1,0 +1,109 @@
+name = "appelbe"
+version = "0.0.1"
+license = "GPL-3.0-only"
+author = "Federico Negro, Luca Senni, Stefano Zaghi"
+maintainer = "Stefano Zaghi"
+copyright = "Copyright 2026 Federico Negro, Luca Senni, Stefano Zaghi"
+description = "Reproduction of Appelbe et al., Phys. Plasmas 26, 102704 (2019), Secs. IV-VI"
+homepage = "https://github.com/szaghi/appelbe"
+
+# the library (use appelbe) in src/lib; the reproduction drivers in src/app; the tests in src/tests (the fobos keeps
+# the three apart the same way: modes static-*, gnu*, tests-gnu*)
+[library]
+source-dir = "src/lib"
+
+[build]
+auto-executables = false
+auto-tests = false
+auto-examples = false
+
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"
+
+[install]
+library = true
+
+[dependencies]
+PENF = { git = "https://github.com/szaghi/PENF", branch = "master" }
+
+[[executable]]
+name = "appelbe_electrons"
+source-dir = "src/app"
+main = "appelbe_electrons.F90"
+
+[[executable]]
+name = "appelbe_fig1"
+source-dir = "src/app"
+main = "appelbe_fig1.F90"
+
+[[executable]]
+name = "appelbe_fig2"
+source-dir = "src/app"
+main = "appelbe_fig2.F90"
+
+[[executable]]
+name = "appelbe_fig3"
+source-dir = "src/app"
+main = "appelbe_fig3.F90"
+
+[[executable]]
+name = "appelbe_fig4"
+source-dir = "src/app"
+main = "appelbe_fig4.F90"
+
+[[executable]]
+name = "appelbe_fig5"
+source-dir = "src/app"
+main = "appelbe_fig5.F90"
+
+[[executable]]
+name = "appelbe_fig6"
+source-dir = "src/app"
+main = "appelbe_fig6.F90"
+
+[[executable]]
+name = "appelbe_footnote30"
+source-dir = "src/app"
+main = "appelbe_footnote30.F90"
+
+[[executable]]
+name = "appelbe_sec5"
+source-dir = "src/app"
+main = "appelbe_sec5.F90"
+
+[[executable]]
+name = "appelbe_solvers"
+source-dir = "src/app"
+main = "appelbe_solvers.F90"
+
+[[executable]]
+name = "appelbe_validation"
+source-dir = "src/app"
+main = "appelbe_validation.F90"
+
+[[test]]
+name = "test_conventional"
+source-dir = "src/tests"
+main = "test_conventional.F90"
+
+[[test]]
+name = "test_electrons"
+source-dir = "src/tests"
+main = "test_electrons.F90"
+
+[[test]]
+name = "test_fast_ions"
+source-dir = "src/tests"
+main = "test_fast_ions.F90"
+
+[[test]]
+name = "test_fits"
+source-dir = "src/tests"
+main = "test_fits.F90"
+
+[[test]]
+name = "test_solvers"
+source-dir = "src/tests"
+main = "test_solvers.F90"
