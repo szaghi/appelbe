@@ -36,7 +36,7 @@ $f_0'$ and $f_0''$. For a Maxwellian these reduce term by term to the paper's fo
 | Maxwellian (closed forms, the default) | *no `electrons` argument* | — |
 | Maxwellian at temperature T, through the general path | `electron_maxwellian` | `[T/T_e]` |
 | Bipolar distortion of Senni et al. (Eq. 21) | `electron_bipolar` | `[A, u_0, w]`, momenta in $\sqrt{m_eT_e}$ |
-| Any table, e.g. from INDACO | `electron_table`, `electron_table_params(x, f)`, `read_table` | $x = u_L = p/\sqrt{m_eT_e}$, f |
+| Any table, e.g. from INDACO | `electron_table`, `electron_table_params(x, f)`, `read_table` (checks: `electron_table_check`) | $x = u_L = p/\sqrt{m_eT_e}$, f |
 
 $f_0$ may have any normalisation (it is normalised to unit density on the grid). It must be smooth, because $f_0'$ and
 $f_0''$ come from five-point differences of the function, and it must vanish at `u_max`. `electron_table` interpolates

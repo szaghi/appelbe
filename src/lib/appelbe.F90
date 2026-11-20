@@ -8,7 +8,7 @@ use appelbe_closure,       only : heat_flow_thermoelectric, heat_flow_direct, ad
 use appelbe_constants,     only : pi, sqrt_pi, e_charge, m_e, eps0, amu, keV_J, MeV_J, &
                                   m_proton, m_alpha, m_carbon12, m_DT
 use appelbe_distributions, only : energy_gaussian, energy_flat, slowing_down, electron_maxwellian, electron_bipolar, &
-                                  electron_table, electron_table_params
+                                  electron_table, electron_table_params, electron_table_check
 use appelbe_eedf,          only : slope_temperature, ts_spectrum, ts_temperature, kinetic_temperature
 use appelbe_io,            only : read_table
 use appelbe_fits,          only : n_nodes, v_nodes, fit_response, fit_node_response, fit_zero_column
@@ -29,7 +29,7 @@ public :: pi, sqrt_pi, e_charge, m_e, eps0, amu, keV_J, MeV_J, m_proton, m_alpha
 public :: kinetic_params, kinetic_operator, kinetic_response, speed_distribution, method_complex, method_paper
 ! fast-ion energy spectra (footnote 30) and electron distributions
 public :: energy_gaussian, energy_flat, slowing_down, electron_maxwellian, electron_bipolar, &
-                                  electron_table, electron_table_params
+                                  electron_table, electron_table_params, electron_table_check
 ! tabulated input (two columns, '#' comments)
 public :: read_table
 ! what Thomson scattering and ECE read from the electron f0

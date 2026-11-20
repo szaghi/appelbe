@@ -100,6 +100,7 @@ type :: kinetic_operator
       procedure, pass(self) :: source_thermal   !< g7 for a unit temperature-gradient drive.
       procedure, pass(self) :: source_fast_flux !< g7 for a unit fast-ion flux.
       procedure, pass(self) :: fast_integrals   !< I/J integrals of the fast-ion distribution at one node.
+      procedure, pass(self), private :: check_input !< Reject inputs init cannot handle, with a message.
       procedure, pass(self), private :: init_fast !< Sample and normalise the fast-ion distribution.
       procedure, pass(self), private :: init_electrons !< Sample and normalise the electron f0 and its derivatives.
       procedure, pass(self) :: electron_integrals !< I_0, I_2, J_-1 of the electron f0 at one node.
@@ -142,7 +143,7 @@ contains
    endfunction resistivity
 
    ! kinetic_operator methods
-   subroutine init(self, par, n_nodes, u_max, distribution, shape_params, align, electrons, electron_params)
+   subroutine init(self, par, n_nodes, u_max, distribution, shape_params, align, electrons, electron_params, stat, errmsg)
    !< Assemble the reduced operator G (Eqs. 13, A8-A13, B2) with the boundary conditions of Eqs. (B14)-(B15).
    !<
    !< Without distribution the fast ions are monoenergetic at par%u_a (Eqs. 29-30). With distribution, F(u) is sampled on
@@ -153,6 +154,11 @@ contains
    !< align = .false. keeps the grid as given, so that u_a generally falls between two nodes: the Heaviside steps of the
    !< I/J integrals then jump between nodes and the moments carry an O(h) error that depends on where u_a falls in its
    !< cell. This is not a numerical option for physics: it emulates the paper's own discretisation (appelbe_paper).
+   !<
+   !< Inputs init cannot handle (an even or too small n_nodes, u_a not resolved by the grid or beyond it, an f0 or F that
+   !< is negative or does not vanish at u_max, a failed allocation) stop the program with the message, or, when stat is
+   !< present, return stat /= 0 and the message in errmsg, the operator left unusable (an interactive caller keeps
+   !< running). Missing shape parameters are a programming error and always stop.
    class(kinetic_operator),       intent(inout)        :: self         !< The operator.
    type(kinetic_params),          intent(in)           :: par          !< Physical parameters.
    integer(I4P),                  intent(in), optional :: n_nodes      !< Number of speed nodes (odd).
@@ -162,6 +168,9 @@ contains
    logical,                       intent(in), optional :: align        !< Align a node with u_a (default .true.).
    procedure(speed_distribution),             optional :: electrons    !< Electron f0 (default: Maxwellian).
    real(R8P),                     intent(in), optional :: electron_params(:) !< Parameters passed to electrons.
+   integer(I4P),                  intent(out), optional :: stat        !< 0 on success; 1 for an input init rejects.
+   character(len=:), allocatable, intent(out), optional :: errmsg      !< Why init rejected the input ('' on success).
+   character(len=:), allocatable :: msg             !< Failure message ('' while none).
    integer(I4P)           :: n, j                   !< Nodes, counter.
    real(R8P)              :: ke, ka, ki, mr, u       !< Normalised collision strengths, mass ratio, speed.
    real(R8P)              :: ie0, ie2, je            !< I_0, I_2, J_-1 of f0.
@@ -172,21 +181,45 @@ contains
    character(len=256)     :: emsg                    !< Allocation message.
    real(R8P)              :: u_top                   !< Grid extent actually used.
 
+   if (present(stat)) stat = 0_I4P
+   if (present(errmsg)) errmsg = ''
    n = default_nodes ; if (present(n_nodes)) n = n_nodes
    self%par = par
    u_top = default_u_max ; if (present(u_max)) u_top = u_max
    ! align a node with u_a: the Heaviside jumps and the delta functions of F0, F1 (Eqs. 29-30) then sit on a node, which
    ! removes an erratic O(h) error in the fast-ion moments (u_max is stretched by less than half a cell)
    self%aligned = .true. ; if (present(align)) self%aligned = align
-   if (par%u_a > 0._R8P .and. self%aligned) &
-      u_top = par%u_a * real(n - 1_I4P, R8P) / real(nint(par%u_a * real(n - 1_I4P, R8P) / u_top), R8P)
+   msg = ''
+   if (n < 7_I4P .or. mod(n, 2_I4P) == 0_I4P) then
+      msg = 'kinetic: n_nodes must be odd and >= 7'
+   elseif (.not. u_top > 0._R8P) then
+      msg = 'kinetic: u_max must be positive'
+   elseif (par%u_a > 0._R8P .and. self%aligned) then
+      if (nint(par%u_a * real(n - 1_I4P, R8P) / u_top) < 1) then
+         msg = 'kinetic: u_a under-resolved, increase n_nodes (need u_a >= 4 h)'
+      else
+         u_top = par%u_a * real(n - 1_I4P, R8P) / real(nint(par%u_a * real(n - 1_I4P, R8P) / u_top), R8P)
+      endif
+   endif
+   if (len(msg) > 0) then
+      call raise(msg, stat, errmsg) ; return
+   endif
    call self%grid%init(n=n, u_max=u_top)
    if (allocated(self%g)) deallocate(self%g)
    if (allocated(self%fast)) deallocate(self%fast)
    allocate(self%g(n-2, n-2), row(n), self%fast(n), stat=ierr, errmsg=emsg)
-   if (ierr /= 0_I4P) error stop 'kinetic_operator%init: '//trim(emsg)
+   if (ierr /= 0_I4P) then
+      call raise('kinetic_operator%init: '//trim(emsg), stat, errmsg) ; return
+   endif
+   msg = self%check_input(distribution, shape_params)
+   if (len(msg) > 0) then
+      call raise(msg, stat, errmsg) ; return
+   endif
    call self%init_fast(distribution, shape_params)
-   call self%init_electrons(electrons, electron_params)
+   call self%init_electrons(electrons, electron_params, msg)
+   if (len(msg) > 0) then
+      call raise(msg, stat, errmsg) ; return
+   endif
 
    ki = 0.75_R8P * sqrt_pi
    ke = ki / par%z_i * par%lnl_ee_ratio
@@ -428,8 +461,38 @@ contains
    endif
    endfunction fast_integrals
 
+   function check_input(self, distribution, shape_params) result(msg)
+   !< The fast-ion inputs init cannot handle, as a message ('' when none): u_a not resolved by the grid or beyond it
+   !< (monoenergetic), a distribution F that is negative or does not vanish at u_max. The grid must be built.
+   class(kinetic_operator),       intent(in)   :: self            !< The operator, its grid built.
+   procedure(speed_distribution), optional     :: distribution    !< Fast-ion speed distribution.
+   real(R8P),           intent(in), optional   :: shape_params(:) !< Parameters passed to distribution.
+   character(len=:), allocatable               :: msg             !< Why the input is rejected; '' when it is not.
+   real(R8P)                                   :: f(self%grid%n)  !< Sampled distribution.
+   integer(I4P)                                :: j               !< Counter.
+
+   msg = ''
+   if (self%par%u_a <= 0._R8P) return
+   if (.not. present(distribution)) then
+      if (self%par%u_a < merge(4._R8P, 0.5_R8P, self%aligned) * self%grid%h) then
+         msg = 'kinetic: u_a under-resolved, increase n_nodes (need u_a >= 4 h)'
+      elseif (self%par%u_a > self%grid%u(self%grid%n - 1)) then
+         msg = 'kinetic: u_a beyond the grid, increase u_max'
+      endif
+      return
+   endif
+   if (.not. present(shape_params)) error stop 'kinetic: a fast-ion distribution needs shape_params'
+   f = [(distribution(self%grid%u(j), shape_params), j=1_I4P, self%grid%n)]
+   if (any(f < 0._R8P) .or. .not. maxval(f) > 0._R8P) then
+      msg = 'kinetic: fast-ion distribution negative somewhere, or zero everywhere'
+   elseif (f(self%grid%n) > 1.e-12_R8P * maxval(f)) then
+      msg = 'kinetic: fast-ion distribution does not vanish at u_max, increase u_max'
+   endif
+   endfunction check_input
+
    subroutine init_fast(self, distribution, shape_params)
-   !< Sample the fast-ion distribution on the grid, normalise it to unit density, compute u_flux and u_energy.
+   !< Sample the fast-ion distribution on the grid, normalise it to unit density, compute u_flux and u_energy (the input
+   !< passed check_input).
    !<
    !< Monoenergetic: F = delta(u - u_a) / (4 pi u^2), with the delta as a unit-area hat on the two nodes around u_a (only
    !< its node values enter, through the mass-ratio terms); u_flux = u_energy = u_a.
@@ -451,30 +514,30 @@ contains
       self%u_flux = self%par%u_a
       self%u_energy = self%par%u_a
    else
-      if (.not. present(shape_params)) error stop 'kinetic: a fast-ion distribution needs shape_params'
       self%fast = [(distribution(self%grid%u(j), shape_params), j=1_I4P, self%grid%n)]
       w = 4._R8P * pi * self%grid%lower_weights(self%grid%n)
-      if (self%fast(self%grid%n) > 1.e-12_R8P * maxval(self%fast)) &
-         error stop 'kinetic: fast-ion distribution does not vanish at u_max, increase u_max'
       self%fast = self%fast / sum(w * self%grid%u**2 * self%fast)
       self%u_flux = sum(w * self%grid%u**3 * self%fast)
       self%u_energy = sqrt(sum(w * self%grid%u**4 * self%fast))
    endif
    endsubroutine init_fast
 
-   subroutine init_electrons(self, electrons, electron_params)
+   subroutine init_electrons(self, electrons, electron_params, msg)
    !< Sample the electron f0 on the grid, normalise it to unit density, and compute df0/du, d2f0/du2.
    !<
    !< Maxwellian: closed forms. Otherwise the derivatives come from five-point differences of the function itself (step
-   !< 1e-3, error ~1e-10), so f0 must be smooth and defined slightly beyond each node.
+   !< 1e-3, error ~1e-10), so f0 must be smooth and defined slightly beyond each node. An f0 that is negative or zero
+   !< everywhere, or does not vanish at u_max, is rejected with msg /= ''.
    class(kinetic_operator),       intent(inout) :: self               !< The operator.
    procedure(speed_distribution), optional      :: electrons          !< Electron f0.
    real(R8P),           intent(in), optional    :: electron_params(:) !< Parameters passed to electrons.
+   character(len=:), allocatable, intent(out)   :: msg                !< Why f0 is rejected; '' when it is not.
    real(R8P), parameter                         :: d = 1.e-3_R8P      !< Difference step.
    real(R8P)                                    :: norm               !< Density of the sampled f0.
    real(R8P)                                    :: fm2, fm1, fp1, fp2 !< f0 at u - 2d, u - d, u + d, u + 2d.
    integer(I4P)                                 :: j                  !< Counter.
 
+   msg = ''
    if (allocated(self%f0)) deallocate(self%f0, self%df0, self%d2f0)
    allocate(self%f0(self%grid%n), self%df0(self%grid%n), self%d2f0(self%grid%n))
    self%maxwellian_f0 = .not. present(electrons)
@@ -494,8 +557,11 @@ contains
       self%df0(j)  = (fm2 - 8._R8P * fm1 + 8._R8P * fp1 - fp2) / (12._R8P * d)
       self%d2f0(j) = (-fm2 + 16._R8P * fm1 - 30._R8P * self%f0(j) + 16._R8P * fp1 - fp2) / (12._R8P * d**2)
    enddo
-   if (self%f0(self%grid%n) > 1.e-12_R8P * maxval(self%f0)) &
-      error stop 'kinetic: electron distribution does not vanish at u_max, increase u_max'
+   if (any(self%f0 < 0._R8P) .or. .not. maxval(self%f0) > 0._R8P) then
+      msg = 'kinetic: electron distribution negative somewhere, or zero everywhere' ; return
+   elseif (self%f0(self%grid%n) > 1.e-12_R8P * maxval(self%f0)) then
+      msg = 'kinetic: electron distribution does not vanish at u_max, increase u_max' ; return
+   endif
    norm = 4._R8P * pi * sum(self%grid%lower_weights(self%grid%n) * self%grid%u**2 * self%f0)
    self%f0 = self%f0 / norm ; self%df0 = self%df0 / norm ; self%d2f0 = self%d2f0 / norm
    endsubroutine init_electrons
@@ -523,6 +589,17 @@ contains
    endsubroutine electron_integrals
 
    ! private helpers
+   subroutine raise(msg, stat, errmsg)
+   !< A failure of init: stop with msg, or return it through stat and errmsg when the caller asked (stat present).
+   character(*),                  intent(in)            :: msg    !< What failed.
+   integer(I4P),                  intent(out), optional :: stat   !< Set to 1.
+   character(len=:), allocatable, intent(out), optional :: errmsg !< Set to msg.
+
+   if (.not. present(stat)) error stop msg
+   stat = 1_I4P
+   if (present(errmsg)) errmsg = msg
+   endsubroutine raise
+
    elemental function maxwellian(u) result(f)
    !< Normalised Maxwellian f0 = pi^(-3/2) exp(-u^2) (Eq. 4), int f0 d^3u = 1.
    real(R8P), intent(in) :: u !< Normalised speed.

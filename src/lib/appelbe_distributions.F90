@@ -10,7 +10,7 @@ use penf, only : R8P
 implicit none
 private
 public :: energy_gaussian, energy_flat, slowing_down
-public :: electron_maxwellian, electron_bipolar, electron_table, electron_table_params
+public :: electron_maxwellian, electron_bipolar, electron_table, electron_table_params, electron_table_check
 
 contains
    pure function energy_gaussian(u, p) result(f)
@@ -112,11 +112,11 @@ contains
    real(R8P), allocatable :: p(:)          !< [n, x, ln f, M].
    real(R8P)              :: y(size(x)), m(size(x)), d(size(x)), c(size(x)), r(size(x)), h(size(x)) !< Thomas sweep.
    integer                :: n, i          !< Table size, node.
+   character(len=:), allocatable :: msg    !< Why the table is rejected.
 
+   msg = electron_table_check(x, f)
+   if (len(msg) > 0) error stop msg
    n = size(x)
-   if (n < 3 .or. size(f) /= n) error stop 'electron_table_params: need n >= 3 nodes and as many values'
-   if (abs(x(1)) > 0._R8P .or. any(x(2:) <= x(:n-1))) error stop 'electron_table_params: x(1) = 0, increasing'
-   if (any(f <= 0._R8P)) error stop 'electron_table_params: f must be positive'
    y = log(f)
    h(:n-1) = x(2:) - x(:n-1)
    ! clamped left end, 2 h_1 M_1 + h_1 M_2 = 6 (y_2 - y_1) / h_1; interior rows; M_n = 0
@@ -132,6 +132,25 @@ contains
    enddo
    p = [real(n, R8P), x, y, m]
    endfunction electron_table_params
+
+   pure function electron_table_check(x, f) result(msg)
+   !< Why electron_table_params rejects a table f(x) ('' when it accepts it): an interactive caller checks first and
+   !< reports the message instead of stopping.
+   real(R8P), intent(in)         :: x(:) !< Nodes.
+   real(R8P), intent(in)         :: f(:) !< Values.
+   character(len=:), allocatable :: msg  !< The reason, '' for a valid table.
+   integer                       :: n    !< Table size.
+
+   msg = ''
+   n = size(x)
+   if (n < 3 .or. size(f) /= n) then
+      msg = 'electron_table_params: need n >= 3 nodes and as many values'
+   elseif (abs(x(1)) > 0._R8P .or. any(x(2:) <= x(:n-1))) then
+      msg = 'electron_table_params: x(1) = 0, increasing'
+   elseif (any(.not. f > 0._R8P)) then
+      msg = 'electron_table_params: f must be positive'
+   endif
+   endfunction electron_table_check
 
    ! private helpers
    elemental function logistic(z) result(s)

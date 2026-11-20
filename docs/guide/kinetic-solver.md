@@ -34,7 +34,7 @@ endtype kinetic_params
 ## The operator
 
 ```fortran
-call op%init(par, n_nodes, u_max, distribution, shape_params, align)
+call op%init(par, n_nodes, u_max, distribution, shape_params, align, electrons, electron_params, stat, errmsg)
 ```
 
 | Argument | Default | Meaning |
@@ -44,11 +44,20 @@ call op%init(par, n_nodes, u_max, distribution, shape_params, align)
 | `u_max` | 7 | grid extent in $v_{Te}$ (stretched by < half a cell to put a node on `u_a`) |
 | `distribution`, `shape_params` | monoenergetic | a fast-ion speed distribution and its parameters ([Energy spectra](distributions)) |
 | `align` | `.true.` | node alignment with `u_a`; `.false.` emulates the paper's discretisation |
+| `electrons`, `electron_params` | Maxwellian | a non-Maxwellian electron $f_0$ ([Non-Maxwellian electrons](electrons)) |
+| `stat`, `errmsg` | absent: stop | an input `init` rejects returns `stat = 1` and the reason in `errmsg` instead of stopping |
 
 `init` assembles the reduced operator $G$, $(N-2)\times(N-2)$, row by row: five-point centred differences
 (three-point next to the boundaries), Simpson weights for the integral terms, and the boundary conditions
 $f_1(u_1) = f_1(u_2)$ (column 1 folded into column 2) and $f_1(u_N) = 0$ (column $N$ dropped). After `init`,
 `op%grid%u(:)` holds the nodes, `op%u_flux` the flux moment and `op%u_energy` the mean-energy speed of the fast ions.
+
+`init` rejects what it cannot handle: an even `n_nodes` or one below 7, `u_max` not positive, $u_\alpha$ below four
+cells or beyond the grid, an $f_0$ or $F$ that is negative somewhere or does not vanish at `u_max`. Without `stat` it
+stops the program with the reason (the drivers); with `stat` it returns `stat = 1`, the reason in `errmsg` (an
+allocatable string), and the object can be initialised again (the GUI does this, so a bad input is a message, not
+a crash). `read_table` takes the same `stat` and `errmsg`, and `electron_table_check(x, f)` gives the reason a table
+would be refused by `electron_table_params` (`''` when it is accepted).
 
 ### Node alignment
 

@@ -140,7 +140,8 @@ Kinetic-solver design points that are not obvious from any single file:
 
 ## Validation status
 
-Measured on 2026-10-23. `fobis rule --ex tests` runs 150 checks, and all pass in both modes (`gnu-debug` traps FP
+Measured on 2026-10-23. `fobis rule --ex tests` runs 174 checks (150 then; `test_errors` added 24 on 2026-11-20, plus the
+expected failure `test_xfail_init_stop`), and all pass in both modes (`gnu-debug` traps FP
 overflow: keep distribution code overflow-safe, see `logistic` in `appelbe_distributions`). Also 150/150 with ifx 2026.2
 and nvfortran 26.9 (`static-intel`, `static-nvf`; 2026-11-19), after the nvfortran workaround in `solve_paper` (an
 explicit `allocate` instead of `b = rhs(2:n-1, :)`, which nvfortran miscompiles there). The full comparison is in
@@ -208,6 +209,10 @@ while ECE absorption reads f₀′. The physics goals of Luca Senni are not full
   are `electron_maxwellian` (`[T/T_e]`), `electron_bipolar` (`[A, u_0, w]`, Eq. 21 of the slides, momenta in
   sqrt(m_e T_e), so u_L = sqrt(2) u) and `electron_table` (pack with `electron_table_params(x, f)`, x = u_L from 0;
   spline of ln f, zero slope at 0, linear beyond the end; `read_table` reads two columns).
+  - `init`, `read_table` take optional `stat`, `errmsg`: a rejected input (even/small `n_nodes`, u_a under-resolved or off
+    the grid, f₀ or F negative or not vanishing at u_max, unreadable table) returns `stat = 1` instead of `error stop`
+    (the GUI needs this); `electron_table_check(x, f)` gives the reason `electron_table_params` would stop. Without `stat`
+    the drivers stop as before (`test_errors`, `test_xfail_init_stop`).
   - Without `electrons`, the closed Maxwellian forms run as before. f₀′ and f₀″ come from five-point differences with
     step 1e-3, and f₀ is normalised to unit density.
 - **Formulation:** general Eqs. (A2), (A5): g₄ = 4πk_e(f₀″/5u⁴ − f₀′/5u⁵), g₅ = 4πk_e f₀′/3u³, g₆ = 4πk_e(u f₀″/5 + 2f₀′/15),

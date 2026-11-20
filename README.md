@@ -42,7 +42,7 @@ fobis fetch                   # PENF into src/third_party/
 fobis build --mode gnu        # the drivers (src/app) into bin/
 fobis build --mode tests-gnu  # the tests (src/tests) into exe/
 fobis build --mode static-gnu # the library alone: lib/libappelbe.a, use appelbe
-fobis rule --ex tests         # verification suite (150 checks)
+fobis rule --ex tests         # verification suite (174 checks)
 fobis rule --ex figures       # all drivers -> results/*.dat + gnuplot previews results/*.png
 fobis rule --ex report        # report/generated/*.tex + report/appelbe_report.pdf
 ```
