@@ -63,7 +63,7 @@ The scans therefore report it on $1 \le u_L \le 4$, that is for energies from $T
 
 ## The study of a distorted f₀
 
-`appelbe_electron_study` computes what the driver `appelbe_electrons` writes (and what the GUI shows), so that
+`appelbe_electron_study` computes what the driver `appelbe_electrons` writes (and what the [GUI](gui) shows), so that
 both report the same numbers. Each takes the operator `ob` with the distorted $f_0$ and the Maxwellian `om` on the same
 grid, or the Maxwellian's responses `rm(1:2)` at the two Hall parameters:
 

@@ -1,0 +1,104 @@
+[project]
+name       = appelbe-gui
+summary    = A FIGURE desktop GUI over the appelbe library: non-Maxwellian electron f0, its diagnostics and transport
+repository = https://github.com/szaghi/appelbe
+authors    = "Federico Negro" "Luca Senni" "Stefano Zaghi"
+license    = GPL-3.0-only
+
+# The GUI's own build (issue #2): fobis fetch -f fobos-gui, then fobis build -f fobos-gui --mode gui-gnu. The core fobos
+# (library, drivers, tests, CI) never reads this file, so it never pulls FIGURE, SDL3 or CMake. FIGURE is pinned to a
+# tag (its API may change before v1.0); its fetch runs FIGURE's own native build (CMake: Dear ImGui, ImPlot, SDL3).
+[dependencies]
+deps_dir = src/gui/third_party
+PENF     = https://github.com/szaghi/PENF :: branch=master
+figure   = https://github.com/szaghi/figure :: tag=v0.8.0 :: use=fobos :: mode=figure-static-gnu
+
+[modes]
+modes = gui-gnu gui-gnu-debug gui-tests-gnu gui-tests-gnu-debug
+
+# FIGURE's native layer statically links SDL3; its system libraries differ by platform (FIGURE's fobos, same varsets):
+# linux is the default, `--varset macos` and `--varset windows` the others
+[varsets]
+default = linux
+
+[varset:linux]
+$NATIVE_LIBS   = figure_native SDL3 stdc++ dl pthread m
+$NATIVE_LFLAGS =
+
+[varset:macos]
+$NATIVE_LIBS   = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
+$NATIVE_LFLAGS = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
+                 -framework IOKit -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers
+                 -framework AVFoundation
+
+[varset:windows]
+$NATIVE_LIBS   = figure_native SDL3 stdc++ pthread m ws2_32 kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version uuid
+                 advapi32 setupapi shell32
+$NATIVE_LFLAGS =
+
+[common-variables]
+# -frecursive: the library runs on FIGURE's worker threads (tasks): every local variable on the stack, none made static
+# (gfortran puts large fixed-size locals in static memory without it), and no -fcheck=recursion guard (docs/guide/gui.md, "Threads")
+$CFLAGS_GNU = -c -frealloc-lhs -ffree-line-length-132 -frecursive
+$OPT_GNU    = -O2
+$DEBUG_GNU  = -O0 -g3 -Wall -Wextra -Wimplicit-interface -fcheck=all -fbacktrace -finit-real=snan -ffpe-trap=invalid,zero,overflow
+# PENF and FIGURE are fetched under src/gui/third_party: PENF is scanned as sources (its library only), FIGURE is built
+# by its own fobos (use=fobos) and linked
+$EXDIRS     = ./src/gui/third_party/PENF/src/tests ./src/gui/third_party/PENF/scripts ./src/gui/third_party/PENF/docs
+              ./src/gui/third_party/figure ./src/gui/tests ./src/third_party
+$FIGURE_LIB = ./src/gui/third_party/figure/lib
+
+[template-gui]
+compiler        = gnu
+src             = ./src/lib/ ./src/gui/
+exclude_dirs    = $EXDIRS
+lib_dir         = $FIGURE_LIB
+ext_libs        = $NATIVE_LIBS
+lflags          = $NATIVE_LFLAGS
+cflags_heritage = True
+colors          = True
+jobs            = 4
+
+# the application: bin/appelbe-gui
+[gui-gnu]
+template  = template-gui
+cflags    = $CFLAGS_GNU $OPT_GNU
+build_dir = ./bin/gui/
+mod_dir   = ./mod/
+obj_dir   = ./obj/
+target    = ./src/gui/appelbe_gui.F90
+output    = appelbe-gui
+
+[gui-gnu-debug]
+template  = template-gui
+cflags    = $CFLAGS_GNU $DEBUG_GNU
+build_dir = ./bin/gui-debug/
+mod_dir   = ./mod/
+obj_dir   = ./obj/
+target    = ./src/gui/appelbe_gui.F90
+output    = appelbe-gui
+
+# the GUI's headless tests (src/gui/tests/test_gui_*) into exe/gui/: scripts/run_gui_tests.sh runs every one
+[gui-tests-gnu]
+template     = template-gui
+cflags       = $CFLAGS_GNU $OPT_GNU
+src          = ./src/lib/ ./src/gui/
+exclude_dirs = ./src/gui/third_party/PENF/src/tests ./src/gui/third_party/PENF/scripts ./src/gui/third_party/PENF/docs
+               ./src/gui/third_party/figure ./src/third_party
+build_dir    = ./exe/gui/
+mod_dir      = ./mod/
+obj_dir      = ./obj/
+
+[gui-tests-gnu-debug]
+template     = template-gui
+cflags       = $CFLAGS_GNU $DEBUG_GNU
+src          = ./src/lib/ ./src/gui/
+exclude_dirs = ./src/gui/third_party/PENF/src/tests ./src/gui/third_party/PENF/scripts ./src/gui/third_party/PENF/docs
+               ./src/gui/third_party/figure ./src/third_party
+build_dir    = ./exe/gui-debug/
+mod_dir      = ./mod/
+obj_dir      = ./obj/
+
+[rule-gui-tests]
+help = Run every GUI test program in exe/gui/ (build first: fobis build -f fobos-gui --mode gui-tests-gnu)
+rule = bash scripts/run_gui_tests.sh exe/gui

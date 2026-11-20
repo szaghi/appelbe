@@ -37,6 +37,10 @@ python3 scripts/digitize_paper.py # refresh report/data/*.dat from the vector PD
 ./exe/test_fits                   # run one test program directly
 ./bin/appelbe_fig5                # run one driver; writes results/fig5_Te01keV.dat, results/fig5_Te15keV.dat
 ./bin/appelbe_electrons f0.dat    # tabulated electron f0 (columns u_L, f0): readouts printed, results/electrons_table_*
+fobis fetch -f fobos-gui          # the GUI's deps (PENF, FIGURE v0.8.0 + its native layer: CMake) into src/gui/third_party/
+fobis build -f fobos-gui --mode gui-gnu        # bin/gui/appelbe-gui (gui-gnu-debug: debug flags, bin/gui-debug/)
+fobis build -f fobos-gui --mode gui-tests-gnu  # the GUI's headless tests src/gui/tests/test_gui_* into exe/gui/
+fobis rule -f fobos-gui --ex gui-tests         # scripts/run_gui_tests.sh exe/gui (run from the root: tests read src/gui/share)
 ```
 
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
@@ -199,6 +203,14 @@ explicit `allocate` instead of `b = rhs(2:n-1, :)`, which nvfortran miscompiles 
   - Scenario B (carbon beam): at 1–2 keV the beam has v_a/v_Te = 2–3, beyond Fig. 2. There
     j⁰_eα/j⁰_α collapses (−0.05 at 1 keV, −1.7 at 2 keV). The paper's blanket "≈ −5" overestimates the
     low-T end, so the kinetic rates are 3×10¹²–6×10¹³ T/s against the paper's 10¹³–10¹⁵.
+
+## Desktop GUI (issue #2)
+
+`appelbe-gui` (src/gui/, FIGURE v0.8.0, `fobos-gui`) is for Luca (a physicist, not a developer): prebuilt binaries for
+macOS arm64, Windows and Linux. Rules: the library stays GUI-free (the core fobos/CI never read `fobos-gui`); the GUI
+adds no physics (every number from a library call, `appelbe_gui_model`); every shown number is checked by a headless
+test against a direct library call (never a snapshot); inputs the library rejects are messages (`stat`/`errmsg`), never
+a stop. `gui%frame(app)` is called by the program and by the tests alike. Docs: `docs/guide/gui.md`.
 
 ## Non-Maxwellian electrons (beyond the paper)
 

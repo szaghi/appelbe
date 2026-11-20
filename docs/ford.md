@@ -7,6 +7,7 @@ email: stefano.zaghi@gmail.com
 src_dir: ../src
 exclude_dir: ../src/third_party
              ../src/tests
+             ../src/gui
 output_dir: ./docs/ford
 project_github: https://github.com/szaghi/appelbe
 docmark: <

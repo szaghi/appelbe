@@ -49,6 +49,21 @@ fobis rule --ex report        # report/generated/*.tex + report/appelbe_report.p
 
 Run everything from the repository root: the drivers write to `./results/`.
 
+### Desktop GUI
+
+A desktop program over the library for the non-Maxwellian electron work (issue #2): choose an f₀ (Maxwellian, bipolar,
+or a table from a file) and see what TS and ECE read and how transport and the α closure change. Built with
+[FIGURE](https://github.com/szaghi/figure), with its own fobos, so the library never depends on it:
+
+```bash
+fobis fetch -f fobos-gui                       # PENF and FIGURE v0.8.0 (its native layer: CMake, C++17, SDL3's deps)
+fobis build -f fobos-gui --mode gui-gnu        # bin/gui/appelbe-gui
+fobis build -f fobos-gui --mode gui-tests-gnu  # headless tests into exe/gui/
+fobis rule -f fobos-gui --ex gui-tests         # run them
+```
+
+See the [GUI guide](https://szaghi.github.io/appelbe/guide/gui).
+
 ### Build modes
 
 | Mode | Flags | Use |

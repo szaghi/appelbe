@@ -55,7 +55,7 @@ $f_1(u_1) = f_1(u_2)$ (column 1 folded into column 2) and $f_1(u_N) = 0$ (column
 `init` rejects what it cannot handle: an even `n_nodes` or one below 7, `u_max` not positive, $u_\alpha$ below four
 cells or beyond the grid, an $f_0$ or $F$ that is negative somewhere or does not vanish at `u_max`. Without `stat` it
 stops the program with the reason (the drivers); with `stat` it returns `stat = 1`, the reason in `errmsg` (an
-allocatable string), and the object can be initialised again (the GUI does this, so a bad input is a message, not
+allocatable string), and the object can be initialised again (the [GUI](gui) does this, so a bad input is a message, not
 a crash). `read_table` takes the same `stat` and `errmsg`, and `electron_table_check(x, f)` gives the reason a table
 would be refused by `electron_table_params` (`''` when it is accepted).
 
