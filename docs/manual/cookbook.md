@@ -176,8 +176,9 @@ line). `fobis build --mode gnu` builds it, `fobis rule --ex figures` runs every 
 ### Run with runtime checks
 
 ```bash
-fobis build --mode gnu-debug          # bounds, NaN initialisation, FP traps (invalid, zero, overflow)
+fobis build --mode tests-gnu-debug    # the tests, with bounds, NaN initialisation, FP traps (invalid, zero, overflow)
 fobis rule --ex tests
+fobis build --mode gnu-debug          # the drivers, with the same checks, into bin/
 ```
 
 Code that may overflow in release mode harmlessly (an `exp` of a large argument) traps here: keep it overflow-safe.

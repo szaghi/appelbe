@@ -18,8 +18,8 @@ Simple and Stupid) philosophy: simplicity and maintainability over performance.
 1. Fork the repository and create a topic branch.
 2. Build and test in both modes:
    ```bash
-   fobis build --mode gnu-debug && fobis rule --ex tests
-   fobis build --mode gnu && fobis rule --ex tests
+   fobis build --mode tests-gnu-debug && fobis rule --ex tests
+   fobis build --mode tests-gnu && fobis rule --ex tests
    ```
 3. If the change affects results, regenerate them and the report (`fobis rule --ex figures`, `fobis rule --ex report`)
    and check `git diff` of `report/`.
