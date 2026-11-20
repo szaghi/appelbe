@@ -6,7 +6,8 @@ title: Architecture
 
 ```mermaid
 flowchart TB
-  appelbe[appelbe<br/>umbrella module] --> kinetic & fits & closure & plasma & dist & paper & constants
+  appelbe[appelbe<br/>umbrella module] --> kinetic & fits & closure & plasma & dist & paper & constants & eedf & study
+  study[appelbe_electron_study<br/>f0 against the Maxwellian] --> eedf[appelbe_eedf<br/>TS and ECE readouts] --> kinetic
   kinetic[appelbe_kinetic<br/>operator, response, solvers] --> grid[appelbe_velocity_grid<br/>nodes, stencils, quadrature]
   kinetic --> linsolve[appelbe_linear_solver<br/>dense elimination]
   kinetic --> constants[appelbe_constants]

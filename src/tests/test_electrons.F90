@@ -18,6 +18,7 @@ use appelbe_assert,        only : assert_close, assert_summary
 use appelbe_constants,     only : m_e, m_alpha, keV_J, MeV_J
 use appelbe_distributions, only : electron_maxwellian, electron_bipolar, electron_table, electron_table_params
 use appelbe_eedf,          only : slope_temperature, ts_temperature, kinetic_temperature
+use appelbe_electron_study, only : n_readouts, electron_readouts, electron_profile
 use appelbe_kinetic,       only : kinetic_params, kinetic_operator, kinetic_response
 use appelbe_plasma,        only : speed_ratio
 
@@ -92,6 +93,24 @@ call assert_close('reference case: j_nu change, wt = 0',    abs(rb%j_nu / rm%j_n
                   rel_tol=2.e-2_R8P)
 call assert_close('reference case: zeta_nu change, wt = 0', abs(rb%zeta_nu / rm%zeta_nu - 1._R8P), 0.0063_R8P, &
                   rel_tol=2.e-2_R8P)
+
+! the study module (what the driver writes and the GUI shows) reports the readouts of the direct calls, bit for bit
+block
+   type(kinetic_response) :: rr(2)           !< Maxwellian responses at omega tau = 0, 1.
+   real(R8P)              :: o(n_readouts)   !< Readouts.
+   real(R8P), allocatable :: prof(:,:)       !< Profile table.
+   integer(I4P)           :: stat            !< Status.
+
+   rr(1) = om%response(omega_tau=0._R8P) ; rr(2) = om%response(omega_tau=1._R8P)
+   call electron_readouts(ob, rr, [0._R8P, 1._R8P], o, stat=stat)
+   call assert_close('study: readouts = direct calls (T_TS, T_kin, sigma change), stat 0', &
+                     merge(1._R8P, 0._R8P, stat == 0_I4P .and. o(1) == ts_temperature(ob, 2._R8P) .and. &
+                     o(3) == kinetic_temperature(ob) .and. o(6) == real(rb%sigma / rm%sigma, R8P) - 1._R8P), 1._R8P, rel_tol=0._R8P)
+   prof = electron_profile(ob, om)
+   call assert_close('study: profile = f0 and slope temperature of the operator', &
+                     merge(1._R8P, 0._R8P, all(prof(:, 5) == ob%f0) .and. all(prof(:, 8) == slope_temperature(ob))), 1._R8P, &
+                     rel_tol=0._R8P)
+endblock
 
 ! tabulated f0 (u_L step 0.02 up to 12): the spline of ln f against the functions it samples, f0 and the responses
 xt = [(0.02_R8P * k, k = 0_I4P, 600_I4P)]

@@ -20,6 +20,7 @@ title: Feature map
 | Non-Maxwellian electron f₀ | `init(..., electrons, electron_params)`, `electron_maxwellian`, `electron_bipolar` | `appelbe_kinetic`, `appelbe_distributions` | [Non-Maxwellian electrons](electrons) |
 | A tabulated f₀ (e.g. INDACO) | `electron_table`, `electron_table_params`, `read_table` | `appelbe_distributions`, `appelbe_io` | [Non-Maxwellian electrons](electrons) |
 | What TS and ECE read from f₀ | `ts_spectrum`, `ts_temperature`, `kinetic_temperature`, `slope_temperature` | `appelbe_eedf` | [Non-Maxwellian electrons](electrons#what-the-diagnostics-read) |
+| f₀ against the Maxwellian: profiles, f₁, readouts, scans | `electron_profile`, `electron_f1`, `electron_readouts`, `electron_scan_row` | `appelbe_electron_study` | [Non-Maxwellian electrons](electrons#the-study-of-a-distorted-f0) |
 | Appendix C closure at any v, ωτ | `fit_response` | `appelbe_fits` | [Algebraic closure](algebraic-closure) |
 | One table row, the ωτ = 0 column | `fit_node_response`, `fit_zero_column`, `v_nodes` | `appelbe_fits` | [Algebraic closure](algebraic-closure) |
 | Heat flows (Eqs. 33–35) | `heat_flow_thermoelectric`, `heat_flow_direct` | `appelbe_closure` | [Transport terms](transport#heat-flow) |

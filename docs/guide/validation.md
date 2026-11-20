@@ -4,7 +4,7 @@ title: Reproduction status
 
 # Reproduction status
 
-Measured on 2026-10-23 with gfortran 16.2 (174 checks since 2026-11-20: `test_errors` adds the rejected inputs).
+Measured on 2026-10-23 with gfortran 16.2 (176 checks since 2026-11-20: `test_errors` adds the rejected inputs, `test_electrons` the study module).
 `fobis rule --ex tests` runs them all, passing in `gnu` and `gnu-debug` (bounds, NaN initialisation, FP traps). The full comparison is in `report/appelbe_report.pdf`.
 
 ## Verification of the solver
