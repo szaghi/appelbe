@@ -8,7 +8,8 @@ description = "Reproduction of Appelbe et al., Phys. Plasmas 26, 102704 (2019), 
 homepage = "https://github.com/szaghi/appelbe"
 
 # the library (use appelbe) in src/lib; the reproduction drivers in src/app; the tests in src/tests (the fobos keeps
-# the three apart the same way: modes static-*, gnu*, tests-gnu*)
+# the three apart the same way: modes static-*, gnu*, tests-gnu*). Not here: test_xfail_init_stop (an expected failure,
+# which fpm test cannot express; scripts/run_tests.sh runs it) and the GUI (src/gui, its own fobos-gui: FIGURE)
 [library]
 source-dir = "src/lib"
 
@@ -92,6 +93,11 @@ main = "test_conventional.F90"
 name = "test_electrons"
 source-dir = "src/tests"
 main = "test_electrons.F90"
+
+[[test]]
+name = "test_errors"
+source-dir = "src/tests"
+main = "test_errors.F90"
 
 [[test]]
 name = "test_fast_ions"
