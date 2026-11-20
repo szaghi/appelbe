@@ -8,7 +8,8 @@ module appelbe_gui_app
 !< Numbers are shown in read-only fields: a test reads them by path ('Diagnostics/T_kin') as the user sees them.
 use, intrinsic :: iso_fortran_env, only : int32, real64
 use penf,                          only : I4P, R8P
-use figure,                        only : app_object, FIG_OK, task_object, ig_begin, ig_begin_disabled,                &
+use figure,                        only : app_object, FIG_OK, figure_last_error, task_object, ig_begin,                    &
+                                          ig_begin_disabled,                                                           &
                                           ig_begin_main_menu_bar, ig_begin_menu, ig_button, ig_collapsing_header,      &
                                           ig_combo, ig_dock_id, ig_dock_layout_begin, ig_dock_layout_end,              &
                                           ig_dock_space, ig_dock_split, ig_dock_window, ig_em, ig_end,                 &
@@ -104,6 +105,7 @@ type :: gui_object
    integer(int32)                :: frames = 0_int32     !< Frames declared.
    integer(int32)                :: png_plot = 0_int32   !< The plot to save as PNG (0: none asked).
    character(len=:), allocatable :: png_path             !< Its file, once chosen.
+   character(len=:), allocatable :: browsed              !< Dialog ids reopened in FIGURE's browser, ';'-separated.
    character(len=:), allocatable :: message              !< The last message (a table loaded, a failure): '' for none.
    logical                       :: quit = .false.       !< File > Quit was picked.
    logical                       :: front = .false.      !< The f0 tab was brought to the front (once, at start).
@@ -425,28 +427,67 @@ contains
    endsubroutine menus
 
    subroutine dialogs(self, app)
-   !< The answers of the file dialogs: a table, a session to read or to write, an export, a PNG.
+   !< The answers of the file dialogs: a table, a session to read or to write, an export, a PNG. A system dialog that
+   !< could not be shown answers later with a failure (Linux without xdg-desktop-portal or zenity, e.g. WSL): the same
+   !< question is then asked with FIGURE's own file browser.
    type(gui_object), intent(inout) :: self   !< The GUI.
    type(app_object), intent(inout) :: app    !< FIGURE's application.
    character(len=:), allocatable    :: chosen !< Path chosen.
-   logical                          :: done, cancelled !< Answered, cancelled.
-   integer(int32)                   :: stat, k !< Status, counter.
+   integer(int32)                   :: k      !< Counter.
    character(len=2)                 :: id     !< Dialog id suffix.
+   character(len=32), parameter     :: DAT(2) = [character(len=32) :: 'Tables|dat', 'All files|*'] !< Export types.
+   character(len=32), parameter     :: PNG(1) = [character(len=32) :: 'PNG images|png'] !< Picture types.
 
-   call app%file_dialog_result('table', chosen, done, cancelled, stat=stat)
-   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%open_table(chosen)
-   call app%file_dialog_result('session_open', chosen, done, cancelled, stat=stat)
-   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%open_session(chosen)
-   call app%file_dialog_result('session_save', chosen, done, cancelled, stat=stat)
-   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%write_session(chosen)
+   if (answer('table', .false., TABLE_FILTERS, '')) call self%open_table(chosen)
+   if (answer('session_open', .false., SESSION_FILTERS, '')) call self%open_session(chosen)
+   if (answer('session_save', .true., SESSION_FILTERS, 'appelbe.ses')) call self%write_session(chosen)
    do k = 1_int32, size(EXPORTS, kind=int32)
       write(id, '(I0)') k
-      call app%file_dialog_result('export:'//trim(id), chosen, done, cancelled, stat=stat)
-      if (done .and. .not. cancelled .and. stat == FIG_OK) call self%export(k, chosen)
+      if (answer('export:'//trim(id), .true., DAT, trim(EXPORT_FILES(k)))) call self%export(k, chosen)
    enddo
-   call app%file_dialog_result('png', chosen, done, cancelled, stat=stat)
-   if (done .and. .not. cancelled .and. stat == FIG_OK) self%png_path = chosen
-   if (done .and. cancelled) self%png_plot = 0_int32
+   if (answer('png', .true., PNG, 'plot.png')) self%png_path = chosen
+
+   contains
+      function answer(dialog, save, filters, default_path) result(chose)
+      !< True when the dialog `dialog` was answered with a path (in chosen); a failed system dialog is asked again with
+      !< FIGURE's browser; a cancel of the PNG's drops the plot asked for.
+      character(*), intent(in) :: dialog       !< Dialog id.
+      logical,      intent(in) :: save         !< A save dialog (else an open one).
+      character(*), intent(in) :: filters(:)   !< Types offered.
+      character(*), intent(in) :: default_path !< Suggested name (save).
+      logical                  :: chose        !< A path was chosen.
+      logical                  :: done, cancelled !< Answered, cancelled.
+      integer(int32)           :: stat         !< Status.
+
+      call app%file_dialog_result(dialog, chosen, done, cancelled, stat=stat)
+      chose = done .and. .not. cancelled .and. stat == FIG_OK
+      if (.not. allocated(self%browsed)) self%browsed = ';'
+      if (done .and. stat /= FIG_OK .and. index(self%browsed, ';'//dialog//';') > 0) then
+         self%message = 'the file browser failed: '//figure_last_error()   ! no second fallback: no loop
+         self%browsed = replace_id(self%browsed, dialog)
+      elseif (done .and. stat /= FIG_OK) then
+         self%browsed = self%browsed//dialog//';'
+         if (save) then
+            call app%save_file_browser(dialog, filters, default_path=default_path)
+         else
+            call app%open_file_browser(dialog, filters)
+         endif
+      elseif (done .and. cancelled .and. dialog == 'png') then
+         self%png_plot = 0_int32
+      endif
+      if (done .and. stat == FIG_OK) self%browsed = replace_id(self%browsed, dialog)
+      endfunction answer
+
+      pure function replace_id(list, dialog) result(left)
+      !< list without ';dialog;'.
+      character(*), intent(in)      :: list, dialog !< Ids, the one to drop.
+      character(len=:), allocatable :: left         !< The rest.
+      integer                       :: i            !< Position.
+
+      left = list
+      i = index(left, ';'//dialog//';')
+      if (i > 0) left = left(:i)//left(i+len(dialog)+2:)
+      endfunction replace_id
    endsubroutine dialogs
 
    subroutine save_png(self, app)
