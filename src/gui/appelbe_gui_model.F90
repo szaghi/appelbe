@@ -14,7 +14,8 @@ use appelbe_constants,      only : m_e, m_alpha, m_proton, m_carbon12, amu, keV_
 use appelbe_distributions,  only : electron_maxwellian, electron_bipolar, electron_table, electron_table_params, &
                                    electron_table_check
 use appelbe_eedf,           only : ts_fit, kinetic_temperature
-use appelbe_electron_study, only : electron_profile, electron_f1, electron_readouts, n_readouts, ts_windows, ece_window
+use appelbe_electron_study, only : electron_profile, electron_f1, electron_readouts, electron_scan_row, scan_value, &
+                                   n_readouts, ts_windows, ece_window
 use appelbe_io,             only : read_table
 use appelbe_kinetic,        only : kinetic_params, kinetic_operator, kinetic_response
 use appelbe_plasma,         only : speed_ratio
@@ -23,7 +24,7 @@ implicit none
 private
 public :: F0_MAXWELLIAN, F0_BIPOLAR, F0_TABLE, F0_KINDS
 public :: SPECIES_ALPHA, SPECIES_PROTON, SPECIES_CARBON, SPECIES_CUSTOM, SPECIES_NAMES
-public :: gui_inputs, f0_view, solve_job
+public :: gui_inputs, f0_view, solve_job, scan_job, SCAN_PARAMETERS, SCAN_COLUMNS
 public :: species_defaults, input_error, physical_params, init_electrons, load_table, compute_f0_view
 public :: CURVE_F0, CURVE_MAXWELLIAN, CURVE_EQUAL_ENERGY, N_CURVES, omega_tau_grid
 
@@ -59,6 +60,10 @@ type :: gui_inputs
    integer(I4P)           :: n_nodes     = 801_I4P                       !< Speed nodes (odd).
    real(R8P)              :: u_max       = 7._R8P                        !< Grid extent in v_Te (u_L = sqrt(2) u_max).
    real(R8P)              :: omega_tau   = 1._R8P                        !< The Hall parameter of the magnetised readouts.
+   integer(I4P)           :: scan_param  = 1_I4P                         !< Scanned bipolar parameter: 1 A, 2 u_0, 3 w.
+   real(R8P)              :: scan_min(3) = [-0.3_R8P, 0.5_R8P, 0.1_R8P]  !< Scan ranges (the driver's): from ...
+   real(R8P)              :: scan_max(3) = [0.3_R8P, 4._R8P, 1._R8P]     !< ... to ...
+   integer(I4P)           :: scan_n(3)   = [13_I4P, 15_I4P, 19_I4P]      !< ... in so many values.
 endtype gui_inputs
 
 type :: f0_view
@@ -105,6 +110,37 @@ type :: solve_job
       procedure, pass(self) :: step   !< Do the next step.
       procedure, pass(self) :: finished !< Every step done (or a failure).
 endtype solve_job
+
+!> Names of the scanned parameters (the bipolar A, u_0, w) as the driver's scan files label them.
+character(len=*), parameter :: SCAN_PARAMETERS(3) = [character(len=4) :: 'A', 'u_0', 'w']
+!> The columns of a scan row after the parameter (scan_header): what the scan plot can show.
+character(len=*), parameter :: SCAN_COLUMNS(19) = [character(len=32) ::                                             &
+   'T_TS (w <= 2)', 'T_TS (w <= 3)', 'T_kin', 'T_slope min', 'T_slope max', 'max |T_slope - T_TS|', 'monotone f0', &
+   'd sigma, wt = 0', 'd kappa, wt = 0', 'd j_nu, wt = 0', 'd zeta_nu, wt = 0',                                 &
+   'd |sigma|, wt', 'd |kappa|, wt', 'd |j_nu|, wt', 'd |zeta_nu|, wt',                                         &
+   'd sigma vs T_kin', 'd kappa vs T_kin', 'd j_nu vs T_kin', 'd zeta_nu vs T_kin']
+
+type :: scan_job
+   !< A one-parameter scan of the bipolar f0, as the driver appelbe_electrons does it: the parameter scan_param of the
+   !< reference inp%bipolar takes scan_n values on [scan_min, scan_max] (scan_value); each row is electron_scan_row against
+   !< the Maxwellian's responses at omega tau = 0 and inp%omega_tau. Step 1 builds the Maxwellian, step 1 + i row i.
+   type(gui_inputs)              :: inp               !< The inputs (a copy).
+   integer(I4P)                  :: done = 0_I4P      !< Steps done.
+   logical                       :: failed = .false.  !< A step failed: error says why.
+   character(len=:), allocatable :: error             !< Why ('' while none).
+   real(R8P), allocatable        :: p(:)              !< The parameter's values.
+   real(R8P), allocatable        :: o(:,:)            !< Readouts (row, n_readouts).
+   real(R8P), allocatable        :: max_dev(:)        !< max |T_slope - T_TS| per row.
+   integer(I4P), allocatable     :: monotone(:)       !< Monotone f0 in the ECE window per row.
+   type(kinetic_operator)        :: om                !< The Maxwellian at T_e.
+   type(kinetic_response)        :: rm(2)             !< Its responses at omega tau = 0 and inp%omega_tau.
+   contains
+      procedure, pass(self) :: setup    => scan_setup    !< Copy the inputs, size the rows.
+      procedure, pass(self) :: steps    => scan_steps    !< Number of steps.
+      procedure, pass(self) :: step     => scan_step     !< Do the next step.
+      procedure, pass(self) :: finished => scan_finished !< Every step done (or a failure).
+      procedure, pass(self) :: column   => scan_column   !< A column of the rows (SCAN_COLUMNS) as reals.
+endtype scan_job
 
 contains
    pure function omega_tau_grid() result(wt)
@@ -189,6 +225,111 @@ contains
    endif
    self%done = self%done + 1_I4P
    endsubroutine step
+
+   subroutine scan_setup(self, inp)
+   !< Copy the inputs and size the rows of the scan inp%scan_param.
+   class(scan_job),  intent(inout) :: self !< The job.
+   type(gui_inputs), intent(in)    :: inp  !< Inputs.
+   integer(I4P)                    :: n, i !< Rows, counter.
+
+   self%inp = inp
+   self%done = 0_I4P
+   self%failed = .false.
+   self%error = ''
+   n = max(2_I4P, inp%scan_n(inp%scan_param))
+   self%p = [(scan_value(inp%scan_min(inp%scan_param), inp%scan_max(inp%scan_param), n, i), i = 1_I4P, n)]
+   if (allocated(self%o)) deallocate(self%o)
+   allocate(self%o(n, n_readouts), self%max_dev(n), self%monotone(n))
+   self%o = 0._R8P ; self%max_dev = 0._R8P ; self%monotone = 0_I4P
+   endsubroutine scan_setup
+
+   pure function scan_steps(self) result(n)
+   !< Number of steps: the Maxwellian, then one per row (0 before setup).
+   class(scan_job), intent(in) :: self !< The job.
+   integer(I4P)                :: n    !< Steps.
+
+   n = 0_I4P
+   if (allocated(self%p)) n = 1_I4P + size(self%p, kind=I4P)
+   endfunction scan_steps
+
+   pure function scan_finished(self) result(yes)
+   !< Every step done, or a step failed.
+   class(scan_job), intent(in) :: self !< The job.
+   logical                     :: yes  !< Finished.
+
+   yes = self%failed .or. self%done >= self%steps()
+   endfunction scan_finished
+
+   subroutine scan_step(self)
+   !< Do the next step: the Maxwellian's responses, then one row (the driver's loop body).
+   class(scan_job), intent(inout) :: self !< The job.
+   type(kinetic_operator)         :: ob   !< The bipolar f0 of this row.
+   type(gui_inputs)               :: row  !< The inputs of this row.
+   integer(I4P)                   :: stat, i !< Status, row.
+   type(kinetic_params)           :: par  !< Its physical parameters.
+
+   if (self%finished()) return
+   if (self%done == 0_I4P) then
+      row = self%inp
+      row%f0_kind = F0_BIPOLAR
+      self%error = input_error(row)
+      par = physical_params(row)
+      if (len(self%error) == 0 .and. .not. par%u_a > 0._R8P) self%error = 'no fast ions: their energy must be positive'
+      if (len(self%error) > 0) then
+         self%failed = .true. ; return
+      endif
+      call self%om%init(par=physical_params(row), n_nodes=row%n_nodes, u_max=row%u_max, stat=stat, errmsg=self%error)
+      if (stat /= 0_I4P) then
+         self%failed = .true. ; return
+      endif
+      self%rm(1) = self%om%response(omega_tau=0._R8P)
+      self%rm(2) = self%om%response(omega_tau=self%inp%omega_tau)
+   else
+      i = self%done
+      row = self%inp
+      row%f0_kind = F0_BIPOLAR
+      row%bipolar(self%inp%scan_param) = self%p(i)
+      self%error = input_error(row)
+      if (len(self%error) > 0) then
+         self%failed = .true. ; return
+      endif
+      call init_electrons(row, ob, stat, self%error)
+      if (stat == 0_I4P) call electron_scan_row(ob, self%rm, [0._R8P, self%inp%omega_tau], self%o(i, :), &
+                                                self%max_dev(i), self%monotone(i), stat=stat, errmsg=self%error)
+      if (stat /= 0_I4P) then
+         self%failed = .true.
+         self%error = trim(SCAN_PARAMETERS(self%inp%scan_param))//' = '//trim(real_text(self%p(i)))//': '//self%error
+         return
+      endif
+   endif
+   self%done = self%done + 1_I4P
+   endsubroutine scan_step
+
+   pure function scan_column(self, c) result(y)
+   !< Column c of SCAN_COLUMNS for the rows done so far: readouts 1:5, max_dev, monotone, readouts 6:17.
+   class(scan_job), intent(in) :: self !< The job.
+   integer(I4P),    intent(in) :: c    !< Column.
+   real(R8P), allocatable      :: y(:) !< Values.
+   integer(I4P)                :: n    !< Rows done.
+
+   n = max(0_I4P, self%done - 1_I4P)
+   select case (c)
+   case (1_I4P:5_I4P) ; y = self%o(:n, c)
+   case (6_I4P)       ; y = self%max_dev(:n)
+   case (7_I4P)       ; y = real(self%monotone(:n), R8P)
+   case default       ; y = self%o(:n, c - 2_I4P)
+   endselect
+   endfunction scan_column
+
+   pure function real_text(x) result(t)
+   !< A real as short text.
+   real(R8P), intent(in)         :: x !< Value.
+   character(len=:), allocatable :: t !< Text.
+   character(len=32)             :: b !< Buffer.
+
+   write(b, '(G0.6)') x
+   t = trim(adjustl(b))
+   endfunction real_text
 
    pure subroutine species_defaults(inp)
    !< Z, mass and energy of the chosen species (custom keeps what the user set).

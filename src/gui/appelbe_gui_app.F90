@@ -17,17 +17,22 @@ use figure,                        only : app_object, FIG_OK, task_object, ig_be
                                           ig_pop_item_width, ig_progress_bar, ig_push_item_width, ig_radio,            &
                                           ig_same_line, ig_separator_text, ig_text, ig_text_colored, ig_text_disabled, &
                                           ig_text_wrapped, ip_begin_plot, ip_end_plot, ip_inf_lines, ip_line,          &
-                                          ip_setup_axes, ip_setup_axes_limits, ip_setup_legend
+                                          ip_setup_axes, ip_setup_axes_limits, ip_setup_legend, ig_item_rect,          &
+                                          ig_separator, ip_scatter
 use appelbe,                       only : n_readouts
-use appelbe_gui_model,             only : gui_inputs, f0_view, solve_job, F0_MAXWELLIAN, F0_BIPOLAR, F0_TABLE,         &
-                                          F0_KINDS, SPECIES_CUSTOM, SPECIES_NAMES, CURVE_F0, CURVE_MAXWELLIAN,         &
-                                          CURVE_EQUAL_ENERGY, N_CURVES, species_defaults, compute_f0_view, load_table
-use appelbe_gui_tasks,             only : solve_work
+use appelbe_gui_model,             only : gui_inputs, f0_view, solve_job, scan_job, F0_MAXWELLIAN, F0_BIPOLAR,       &
+                                          F0_TABLE, F0_KINDS, SPECIES_CUSTOM, SPECIES_NAMES, CURVE_F0,                 &
+                                          CURVE_MAXWELLIAN, CURVE_EQUAL_ENERGY, N_CURVES, SCAN_PARAMETERS,             &
+                                          SCAN_COLUMNS, species_defaults, compute_f0_view, load_table
+use appelbe_gui_tasks,             only : solve_work, scan_work
+use appelbe_gui_export,            only : export_profile, export_f1, export_readouts, export_sweep, export_scan
+use appelbe_gui_session,           only : save_session, load_session
 
 implicit none
 private
 public :: gui_object, gui_version, TABLE_FILTERS
-public :: WINDOW_INPUTS, WINDOW_F0, WINDOW_DIAGNOSTICS, WINDOW_TRANSPORT
+public :: WINDOW_INPUTS, WINDOW_F0, WINDOW_DIAGNOSTICS, WINDOW_TRANSPORT, WINDOW_SCANS
+public :: EXPORTS, PLOT_TITLES, N_PLOTS, SESSION_FILTERS
 public :: QUANTITIES, Q_SIGMA, Q_BETA, Q_KAPPA, Q_J_NU, Q_ZETA_NU, DRIVES, READOUT_LABELS
 
 character(len=*), parameter :: gui_version        = '0.1.0'        !< Version of the GUI.
@@ -35,6 +40,22 @@ character(len=*), parameter :: WINDOW_INPUTS      = 'Inputs'       !< The inputs
 character(len=*), parameter :: WINDOW_F0          = 'Electron f0'  !< The f0 panel.
 character(len=*), parameter :: WINDOW_DIAGNOSTICS = 'Diagnostics'  !< What TS and ECE read.
 character(len=*), parameter :: WINDOW_TRANSPORT   = 'Transport'    !< Transport and the alpha closure.
+character(len=*), parameter :: WINDOW_SCANS       = 'Scans'        !< One-parameter scans of the bipolar f0.
+!> Types offered by the session dialogs.
+character(len=*), parameter :: SESSION_FILTERS(2) = [character(len=32) :: 'Sessions|ses', 'All files|*']
+!> What File > Export writes (the dialog ids are 'export:' and the index).
+character(len=*), parameter :: EXPORTS(5) = [character(len=40) :: 'f0 profile (.dat)...', 'f1 profiles (.dat)...', &
+                                             'readouts (.dat)...', 'omega tau sweep (.dat)...', 'scan (.dat)...']
+!> Default file names of the exports.
+character(len=*), parameter :: EXPORT_FILES(5) = [character(len=24) :: 'electrons_profile.dat', 'electrons_f1.dat', &
+                                                  'electrons_readouts.dat', 'electrons_sweep.dat', 'electrons_scan.dat']
+integer(int32), parameter :: N_PLOTS = 8_int32 !< Plots that File > Save a plot as PNG offers.
+!> Their titles, as ip_begin_plot names them (P_* codes).
+character(len=*), parameter :: PLOT_TITLES(N_PLOTS) = [character(len=32) :: 'f0 and the Maxwellians', &
+   'Relative distortion', 'ECE: slope temperature', 'TS spectrum', 'Quantity against omega tau', &
+   'Change of the modulus', 'f1 profile', 'Scan']
+integer(int32), parameter :: P_F0 = 1_int32, P_DIST = 2_int32, P_SLOPE = 3_int32, P_TS = 4_int32, P_QTY = 5_int32, &
+                             P_MOD = 6_int32, P_F1 = 7_int32, P_SCAN = 8_int32 !< Plot codes.
 !> Types offered by the table dialog.
 character(len=*), parameter :: TABLE_FILTERS(2) = [character(len=32) :: 'Tables|dat;txt;csv;tab', 'All files|*']
 
@@ -69,6 +90,16 @@ type :: gui_object
    real(R8P), allocatable        :: tx(:)                !< The sweep's omega tau > 0.
    real(R8P), allocatable        :: ty(:,:)              !< The chosen component of the quantity (wt, curve).
    real(R8P), allocatable        :: tdy(:,:)             !< |q_f0| / |q_ref| - 1: ref T_kin (1), T_e (2) (wt, ref).
+   type(task_object)             :: scan_task            !< The scan's task.
+   logical                       :: scanning = .false.   !< The scan's task runs.
+   type(scan_job)                :: scan                 !< The last complete scan (scan%done = 0: none yet).
+   integer(int32)                :: scan_revision = -1_int32 !< The inputs' revision the scan was started on.
+   integer(int32)                :: scan_show = 10_int32 !< Column of the scan plot (SCAN_COLUMNS).
+   real(real64)                  :: rect(4, N_PLOTS) = 0._real64 !< Each plot's rectangle, as last drawn [pixels].
+   integer(int32)                :: drawn(N_PLOTS) = -1_int32 !< The frame each plot was last drawn in.
+   integer(int32)                :: frames = 0_int32     !< Frames declared.
+   integer(int32)                :: png_plot = 0_int32   !< The plot to save as PNG (0: none asked).
+   character(len=:), allocatable :: png_path             !< Its file, once chosen.
    character(len=:), allocatable :: message              !< The last message (a table loaded, a failure): '' for none.
    logical                       :: quit = .false.       !< File > Quit was picked.
    logical                       :: front = .false.      !< The f0 tab was brought to the front (once, at start).
@@ -81,6 +112,11 @@ type :: gui_object
       procedure, pass(self) :: stale       !< The inputs changed since the shown solve.
       procedure, pass(self) :: inputs_changed !< Recompute the views after an input change.
       procedure, pass(self) :: select_curves  !< Fill tx, ty, tdy from the job for the chosen quantity, component.
+      procedure, pass(self) :: start_scan  !< Start the scan's task on the current inputs.
+      procedure, pass(self) :: poll_scan   !< Take the scan's result once its task is done.
+      procedure, pass(self) :: open_session !< Load a session file.
+      procedure, pass(self) :: write_session !< Save the inputs as a session file.
+      procedure, pass(self) :: export      !< Write one of the EXPORTS.
 endtype gui_object
 
 contains
@@ -123,6 +159,103 @@ contains
       call self%inputs_changed()
    endif
    endsubroutine open_table
+
+   subroutine open_session(self, path)
+   !< Load a session: every input; a file that cannot be read changes nothing, with the reason.
+   class(gui_object), intent(inout) :: self   !< The GUI.
+   character(*),      intent(in)    :: path   !< File.
+   integer(I4P)                     :: stat   !< Status.
+   character(len=:), allocatable    :: errmsg !< Why not.
+
+   call load_session(path, self%inp, stat, errmsg)
+   if (stat /= 0_I4P) then
+      self%message = errmsg
+   else
+      self%message = 'session read: '//trim(path)
+      call self%inputs_changed()
+   endif
+   endsubroutine open_session
+
+   subroutine write_session(self, path)
+   !< Save the inputs as a session.
+   class(gui_object), intent(inout) :: self   !< The GUI.
+   character(*),      intent(in)    :: path   !< File.
+   integer(I4P)                     :: stat   !< Status.
+   character(len=:), allocatable    :: errmsg !< Why not.
+
+   call save_session(self%inp, path, gui_version, stat, errmsg)
+   if (stat /= 0_I4P) then
+      self%message = errmsg
+   else
+      self%message = 'session saved: '//trim(path)
+   endif
+   endsubroutine write_session
+
+   subroutine export(self, kind, path)
+   !< Write EXPORTS(kind) to path: the f0 profile, f1, the readouts, the omega tau sweep, the scan.
+   class(gui_object), intent(inout) :: self   !< The GUI.
+   integer(int32),    intent(in)    :: kind   !< Which.
+   character(*),      intent(in)    :: path   !< File.
+   integer(I4P)                     :: stat   !< Status.
+   character(len=:), allocatable    :: errmsg !< Why not.
+
+   select case (kind)
+   case (1)    ; call export_profile(path, self%view, stat, errmsg)
+   case (2)    ; call export_f1(path, self%job, stat, errmsg)
+   case (3)    ; call export_readouts(path, self%job, stat, errmsg)
+   case (4)    ; call export_sweep(path, self%job, stat, errmsg)
+   case default; call export_scan(path, self%scan, stat, errmsg)
+   endselect
+   if (stat /= 0_I4P) then
+      self%message = errmsg
+   else
+      self%message = 'written: '//trim(path)
+   endif
+   endsubroutine export
+
+   subroutine start_scan(self)
+   !< Start the scan of inp%scan_param on a worker thread, on a copy of the current inputs.
+   class(gui_object), intent(inout) :: self !< The GUI.
+   type(scan_job)                   :: job  !< The job given to the task (copied by FIGURE).
+   integer(int32)                   :: stat !< Status.
+
+   if (self%scanning) return
+   call job%setup(self%inp)
+   call self%scan_task%start(scan_work, job, stat=stat)
+   if (stat /= FIG_OK) then
+      self%message = 'the scan could not start a thread'
+      return
+   endif
+   self%scanning = .true.
+   self%scan_revision = self%revision
+   endsubroutine start_scan
+
+   subroutine poll_scan(self)
+   !< Once the scan's task is done, take its job (a cancelled one is dropped: the last complete scan stays shown).
+   class(gui_object), intent(inout) :: self !< The GUI.
+   class(*), allocatable            :: data !< The task's data.
+   integer(int32)                   :: stat !< Status.
+
+   if (.not. self%scanning) return
+   if (.not. self%scan_task%done()) return
+   self%scanning = .false.
+   call self%scan_task%result(data, stat=stat)
+   if (stat /= FIG_OK) then
+      self%message = 'the scan failed'
+      return
+   endif
+   select type (data)
+   type is (scan_job)
+      if (data%failed) then
+         self%message = 'scan: '//data%error
+      elseif (data%finished()) then
+         self%scan = data
+         self%message = ''
+      else
+         self%message = 'scan cancelled'
+      endif
+   endselect
+   endsubroutine poll_scan
 
    subroutine start_solve(self)
    !< Start the solves (readouts, f1, the omega tau sweep) on a worker thread, on a copy of the current inputs.
@@ -207,32 +340,128 @@ contains
    class(gui_object), intent(inout) :: self !< The GUI.
    type(app_object),  intent(inout) :: app  !< FIGURE's application.
 
+   self%frames = self%frames + 1_int32
    call self%poll_solve()
+   call self%poll_scan()
    call menus(self, app)
+   call dialogs(self, app)
    call layout()
    call inputs_window(self, app)
    call f0_window(self)
    call diagnostics_window(self)
    call transport_window(self)
+   call scans_window(self)
+   call save_png(self, app)
    ! the tab in front after the layout is Dear ImGui's choice: the f0 panel, once its window exists
    if (.not. self%front) self%front = ig_focus_window(WINDOW_F0)
    endsubroutine frame
 
    ! private
    subroutine menus(self, app)
-   !< The main menu bar: File (open a table, quit).
+   !< The main menu bar: File (a table, sessions, exports, a plot as PNG, quit).
    type(gui_object), intent(inout) :: self !< The GUI.
    type(app_object), intent(inout) :: app  !< FIGURE's application.
+   integer(int32)                   :: k    !< Counter.
+   character(len=2)                 :: id   !< Dialog id suffix.
 
    if (ig_begin_main_menu_bar()) then
       if (ig_begin_menu('File')) then
-         if (ig_menu_item('Open f0 table...')) call ask_table(app)
+         if (ig_menu_item('Open f0 table...')) call ask_open(app, 'table', TABLE_FILTERS)
+         call ig_separator()
+         if (ig_menu_item('Open session...')) call ask_open(app, 'session_open', SESSION_FILTERS)
+         if (ig_menu_item('Save session...')) call ask_save(app, 'session_save', SESSION_FILTERS, 'appelbe.ses')
+         call ig_separator()
+         if (ig_begin_menu('Export')) then
+            do k = 1_int32, size(EXPORTS, kind=int32)
+               write(id, '(I0)') k
+               if (ig_menu_item(trim(EXPORTS(k)))) &
+                  call ask_save(app, 'export:'//trim(id), [character(len=32) :: 'Tables|dat', 'All files|*'], &
+                                trim(EXPORT_FILES(k)))
+            enddo
+            call ig_end_menu()
+         endif
+         if (ig_begin_menu('Save a plot as PNG')) then
+            do k = 1_int32, N_PLOTS
+               if (ig_menu_item(trim(PLOT_TITLES(k)), enabled=self%drawn(k) >= self%frames - 1_int32)) then
+                  self%png_plot = k
+                  call ask_save(app, 'png', [character(len=32) :: 'PNG images|png'], 'plot.png')
+               endif
+            enddo
+            call ig_end_menu()
+         endif
+         call ig_separator()
          if (ig_menu_item('Quit')) self%quit = .true.
          call ig_end_menu()
       endif
       call ig_end_main_menu_bar()
    endif
    endsubroutine menus
+
+   subroutine dialogs(self, app)
+   !< The answers of the file dialogs: a table, a session to read or to write, an export, a PNG.
+   type(gui_object), intent(inout) :: self   !< The GUI.
+   type(app_object), intent(inout) :: app    !< FIGURE's application.
+   character(len=:), allocatable    :: chosen !< Path chosen.
+   logical                          :: done, cancelled !< Answered, cancelled.
+   integer(int32)                   :: stat, k !< Status, counter.
+   character(len=2)                 :: id     !< Dialog id suffix.
+
+   call app%file_dialog_result('table', chosen, done, cancelled, stat=stat)
+   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%open_table(chosen)
+   call app%file_dialog_result('session_open', chosen, done, cancelled, stat=stat)
+   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%open_session(chosen)
+   call app%file_dialog_result('session_save', chosen, done, cancelled, stat=stat)
+   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%write_session(chosen)
+   do k = 1_int32, size(EXPORTS, kind=int32)
+      write(id, '(I0)') k
+      call app%file_dialog_result('export:'//trim(id), chosen, done, cancelled, stat=stat)
+      if (done .and. .not. cancelled .and. stat == FIG_OK) call self%export(k, chosen)
+   enddo
+   call app%file_dialog_result('png', chosen, done, cancelled, stat=stat)
+   if (done .and. .not. cancelled .and. stat == FIG_OK) self%png_path = chosen
+   if (done .and. cancelled) self%png_plot = 0_int32
+   endsubroutine dialogs
+
+   subroutine save_png(self, app)
+   !< At the end of the frame: the plot asked for, as drawn in this frame, to the PNG file chosen; the outcome later.
+   type(gui_object), intent(inout) :: self    !< The GUI.
+   type(app_object), intent(inout) :: app     !< FIGURE's application.
+   character(len=:), allocatable    :: written !< File written.
+   logical                          :: done    !< Outcome known.
+   integer(int32)                   :: stat    !< Status.
+
+   if (self%png_plot > 0_int32 .and. allocated(self%png_path)) then
+      if (self%drawn(self%png_plot) == self%frames) then
+         associate(r => self%rect(:, self%png_plot))
+            call app%save_image(self%png_path, r(1), r(2), r(3), r(4), stat=stat)
+         endassociate
+         if (stat /= FIG_OK) self%message = 'the picture cannot be saved'
+      else
+         self%message = 'the plot "'//trim(PLOT_TITLES(self%png_plot))//'" is not shown: bring its tab to the front'
+      endif
+      self%png_plot = 0_int32
+      deallocate(self%png_path)
+   endif
+   call app%image_result(written, done, stat=stat)
+   if (done) then
+      if (stat == FIG_OK) then
+         self%message = 'saved '//written
+      else
+         self%message = 'the picture cannot be written: '//written
+      endif
+   endif
+   endsubroutine save_png
+
+   subroutine plotted(self, k)
+   !< Record the rectangle of plot k, just drawn (call right after its ip_end_plot).
+   type(gui_object), intent(inout) :: self !< The GUI.
+   integer(int32),   intent(in)    :: k    !< Plot code (P_*).
+
+   associate(r => self%rect(:, k))
+      call ig_item_rect(r(1), r(2), r(3), r(4))
+   endassociate
+   self%drawn(k) = self%frames
+   endsubroutine plotted
 
    subroutine layout()
    !< The dock space: inputs on the left, the panels on the right (tabs), on the first frame; then as the user moves them.
@@ -245,19 +474,34 @@ contains
       call ig_dock_window(WINDOW_F0, right)
       call ig_dock_window(WINDOW_DIAGNOSTICS, right)
       call ig_dock_window(WINDOW_TRANSPORT, right)
+      call ig_dock_window(WINDOW_SCANS, right)
       call ig_dock_layout_end(root)
    endif
    call ig_dock_space(root)
    endsubroutine layout
 
-   subroutine ask_table(app)
-   !< Open the system's file dialog for a table, or FIGURE's browser where there is none (remote mode).
-   type(app_object), intent(inout) :: app  !< FIGURE's application.
-   integer(int32)                   :: stat !< Status.
+   subroutine ask_open(app, id, filters)
+   !< The system's dialog to open a file, or FIGURE's browser where there is none (remote mode).
+   type(app_object), intent(inout) :: app        !< FIGURE's application.
+   character(*),     intent(in)    :: id         !< Dialog id.
+   character(*),     intent(in)    :: filters(:) !< Types offered.
+   integer(int32)                   :: stat       !< Status.
 
-   call app%open_file_dialog('table', TABLE_FILTERS, stat=stat)
-   if (stat /= FIG_OK) call app%open_file_browser('table', TABLE_FILTERS)
-   endsubroutine ask_table
+   call app%open_file_dialog(id, filters, stat=stat)
+   if (stat /= FIG_OK) call app%open_file_browser(id, filters)
+   endsubroutine ask_open
+
+   subroutine ask_save(app, id, filters, default_path)
+   !< The system's dialog to choose where to save, or FIGURE's browser where there is none (remote mode).
+   type(app_object), intent(inout) :: app          !< FIGURE's application.
+   character(*),     intent(in)    :: id           !< Dialog id.
+   character(*),     intent(in)    :: filters(:)   !< Types offered.
+   character(*),     intent(in)    :: default_path !< Suggested name.
+   integer(int32)                   :: stat         !< Status.
+
+   call app%save_file_dialog(id, filters, default_path=default_path, stat=stat)
+   if (stat /= FIG_OK) call app%save_file_browser(id, filters, default_path=default_path)
+   endsubroutine ask_save
 
    subroutine readout(label, value, format)
    !< A number shown in a read-only field (a test reads it by path, as shown).
@@ -274,14 +518,11 @@ contains
    !< The inputs: electron f0, plasma, fast ions, grid. Any change recomputes the f0 view (milliseconds).
    type(gui_object), intent(inout) :: self    !< The GUI.
    type(app_object), intent(inout) :: app     !< FIGURE's application.
-   character(len=:), allocatable    :: chosen  !< Path from the file dialog.
-   logical                          :: done, cancelled, changed !< Dialog answered, cancelled; an input changed.
-   integer(int32)                   :: stat, species !< Status; species before the combo.
+   logical                          :: changed !< An input changed.
+   integer(int32)                   :: species !< Species before the combo.
    character(len=64)                :: line    !< Text.
 
    changed = .false.
-   call app%file_dialog_result('table', chosen, done, cancelled, stat=stat)
-   if (done .and. .not. cancelled .and. stat == FIG_OK) call self%open_table(chosen)
    if (ig_begin(WINDOW_INPUTS)) then
       call ig_push_item_width(ig_em(9))
       call ig_separator_text('Electron f0')
@@ -295,7 +536,7 @@ contains
          changed = ig_input('w', self%inp%bipolar(3), format='%.4g') .or. changed
          call ig_text_disabled('f0 = f_M [1 + A x exp(-x^2/2)], x = (u_L - u_0) / w')
       case (F0_TABLE)
-         if (ig_button('Open table...')) call ask_table(app)
+         if (ig_button('Open table...')) call ask_open(app, 'table', TABLE_FILTERS)
          if (len_trim(self%inp%table_path) > 0) then
             call ig_text_wrapped(trim(self%inp%table_path))
          else
@@ -348,6 +589,7 @@ contains
                call ip_line('Maxwellian, T_kin (same energy)', k(:, 2), k(:, 4))
             endassociate
             call ip_end_plot()
+            call plotted(self, P_F0)
          endif
       else
          call ig_text_colored('[!!] '//self%view%error, RED)
@@ -393,6 +635,7 @@ contains
                call ip_line('f0''/f_M'' - 1, T_e', p(:, 2), p(:, 7))
                call ip_line('f0''/f_M'' - 1, T_kin', k(:, 2), k(:, 7))
                call ip_end_plot()
+               call plotted(self, P_DIST)
             endif
             if (ip_begin_plot('ECE: slope temperature', height=h)) then
                call ip_setup_axes('u_L', 'T_slope = -2 u f0 / f0'' [T_e]')
@@ -402,6 +645,7 @@ contains
                call ip_inf_lines('T_TS, w <= 2', [v%t_ts(1)], horizontal=.true.)
                call ip_inf_lines('T_kin', [v%t_kin], horizontal=.true.)
                call ip_end_plot()
+               call plotted(self, P_SLOPE)
             endif
             if (ip_begin_plot('TS spectrum', height=h)) then
                call ip_setup_axes('w = Delta omega / (k v_Te)', 'S(w) / S(0)', yscale='log')
@@ -412,6 +656,7 @@ contains
                call ip_line('Gaussian fit, w <= 2', p(:, 1), v%s_fit(:, 1))
                call ip_line('Gaussian fit, w <= 3', p(:, 1), v%s_fit(:, 2))
                call ip_end_plot()
+               call plotted(self, P_TS)
             endif
          endassociate
       endif
@@ -477,6 +722,7 @@ contains
             call ip_line('Maxwellian, T_e', self%tx, self%ty(:, CURVE_MAXWELLIAN))
             call ip_line('Maxwellian, T_kin', self%tx, self%ty(:, CURVE_EQUAL_ENERGY))
             call ip_end_plot()
+            call plotted(self, P_QTY)
          endif
          if (ip_begin_plot('Change of the modulus', height=h)) then
             call ip_setup_axes('omega tau', '|q_f0| / |q_M| - 1', xscale='log')
@@ -484,6 +730,7 @@ contains
             call ip_line('against T_kin', self%tx, self%tdy(:, 1))
             call ip_line('against T_e', self%tx, self%tdy(:, 2))
             call ip_end_plot()
+            call plotted(self, P_MOD)
          endif
          call ig_separator_text('f1 for a unit drive')
          call ig_push_item_width(ig_em(14))
@@ -497,9 +744,63 @@ contains
                call ip_line('Maxwellian, T_e', sqrt(2._R8P) * f(:, 1), f(:, CM(self%drive)))
             endassociate
             call ip_end_plot()
+            call plotted(self, P_F1)
          endif
       endif
    endif
    call ig_end()
    endsubroutine transport_window
+   subroutine scans_window(self)
+   !< One-parameter scans of the bipolar f0 around the values of Inputs, on a task, as appelbe_electrons does them.
+   type(gui_object), intent(inout) :: self     !< The GUI.
+   real(R8P)                        :: fraction !< Progress.
+   character(len=:), allocatable    :: msg      !< Progress message.
+   integer(int32)                   :: ip       !< Scanned parameter.
+   real(R8P), allocatable           :: y(:)     !< Column shown.
+
+   if (ig_begin(WINDOW_SCANS)) then
+      call ig_text_wrapped('A scan varies one parameter of the bipolar f0 (A, u_0, w), the others at their values in '// &
+                           'Inputs, and solves at every value: the readouts of Diagnostics and Transport, one row each.')
+      ip = self%inp%scan_param
+      call ig_push_item_width(ig_em(7))
+      if (ig_radio('A##scan', self%inp%scan_param, 1_int32)) continue
+      call ig_same_line()
+      if (ig_radio('u_0##scan', self%inp%scan_param, 2_int32)) continue
+      call ig_same_line()
+      if (ig_radio('w##scan', self%inp%scan_param, 3_int32)) continue
+      ip = self%inp%scan_param
+      if (ig_input('from', self%inp%scan_min(ip), format='%.4g')) continue
+      call ig_same_line()
+      if (ig_input('to', self%inp%scan_max(ip), format='%.4g')) continue
+      call ig_same_line()
+      if (ig_input('values', self%inp%scan_n(ip), step=1_int32)) self%inp%scan_n(ip) = max(2_int32, self%inp%scan_n(ip))
+      call ig_pop_item_width()
+      call ig_begin_disabled(self%scanning)
+      if (ig_button('Run scan')) call self%start_scan()
+      call ig_end_disabled()
+      if (self%scanning) then
+         call ig_same_line()
+         if (ig_button('Cancel##scan')) call self%scan_task%cancel()
+         call self%scan_task%progress(fraction, msg)
+         call ig_progress_bar(max(0._R8P, fraction), msg)
+      elseif (self%scan%done > 0 .and. self%scan_revision /= self%revision) then
+         call ig_text_colored('[!] the inputs changed since this scan: run it again', [0.95_real64, 0.75_real64, 0.30_real64])
+      endif
+      if (len(self%message) > 0 .and. index(self%message, 'scan') > 0) call ig_text_colored(self%message, RED)
+      if (self%scan%done > 0) then
+         call ig_push_item_width(ig_em(14))
+         if (ig_combo('show', self%scan_show, SCAN_COLUMNS)) continue
+         call ig_pop_item_width()
+         y = self%scan%column(self%scan_show)
+         if (ip_begin_plot('Scan', height=-1.0_real64)) then
+            call ip_setup_axes(trim(SCAN_PARAMETERS(self%scan%inp%scan_param)), trim(SCAN_COLUMNS(self%scan_show)))
+            call ip_line(trim(SCAN_COLUMNS(self%scan_show)), self%scan%p(:size(y)), y)
+            call ip_scatter('##points', self%scan%p(:size(y)), y)
+            call ip_end_plot()
+            call plotted(self, P_SCAN)
+         endif
+      endif
+   endif
+   call ig_end()
+   endsubroutine scans_window
 endmodule appelbe_gui_app

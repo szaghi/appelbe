@@ -214,6 +214,9 @@ a stop. `gui%frame(app)` is called by the program and by the tests alike. Docs: 
 **Threads:** the solves run as FIGURE tasks (`solve_work` over `solve_job` steps). This relies on `src/lib` having no
 module variable, `save`, or initialised local (audit table in `docs/guide/gui.md`, "Threads"; `fobos-gui` compiles with
 `-frecursive`). Keep it so in every library change; `test_gui_task` checks task = main thread bit for bit.
+Exports use the library's headers/writers: for the default inputs (= the driver's reference case) they are byte for
+byte the driver's `results/electrons_{profile,f1,scan_*}.dat` (`test_gui_files` compares them when results/ exists).
+Sessions (`.ses`): `key = value`, ES25.16 reals (bit-exact round trip), a table's rows embedded.
 
 ## Non-Maxwellian electrons (beyond the paper)
 
