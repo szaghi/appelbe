@@ -38,6 +38,7 @@ because its API may change before its v1.0.
 | `gui-gnu-debug` | `bin/gui-debug/appelbe-gui` | the library's debug flags (`-fcheck=all`, FP traps) and `-frecursive` |
 | `gui-tests-gnu` | `exe/gui/test_gui_*` | as `gui-gnu` |
 | `gui-tests-gnu-debug` | `exe/gui-debug/test_gui_*` | as `gui-gnu-debug` |
+| `gui-release-gnu` | `bin/gui-release/appelbe-gui` | as `gui-gnu`, the compiler's runtime linked statically ([Packages](#packages)) |
 
 macOS and Windows link other system libraries: `--varset macos` or `--varset windows` (the same varsets as FIGURE's
 fobos).
@@ -46,11 +47,44 @@ fobos).
 bin/gui/appelbe-gui                  # a window
 bin/gui/appelbe-gui case.ses         # a window, with a session's inputs
 bin/gui/appelbe-gui --remote 8080    # no window: served to a web browser (FIGURE's remote mode)
+bin/gui/appelbe-gui --self-test      # headless checks, exit status 0 when they pass
 bin/gui/appelbe-gui --version
 ```
 
 `--remote PORT` is a fallback for a machine without a usable OpenGL 3: the program prints an address with an access
 token, and the interface runs in a web browser.
+
+## Packages
+
+Users get prebuilt programs ([Install the GUI](gui-install)): `fobis build -f fobos-gui --mode gui-release-gnu`
+links the compiler's runtime statically, then `scripts/package_gui.sh` makes the archive of the running platform:
+
+| Platform | Archive | Static in the program | From the system |
+|---|---|---|---|
+| Linux x86_64 | `appelbe-gui-vX.Y.Z-linux-x86_64.tar.gz` | libgfortran, libquadmath, libgcc, libstdc++ (`-l:libstdc++.a`), SDL3 | glibc; X11/Wayland and OpenGL, opened by SDL3 at run time |
+| macOS arm64 | `appelbe-gui-vX.Y.Z-macos-arm64.zip` (`appelbe-gui.app`) | libgfortran, libgcc, SDL3 | libc++, libobjc, libiconv, the frameworks, OpenGL |
+| Windows x86_64 | `appelbe-gui-vX.Y.Z-windows-x86_64.zip` | everything MinGW (`-static`) | the Windows DLLs, OpenGL (`opengl32`) |
+
+The script refuses to package a program that loads a library of the build machine: `ldd` may list only glibc's
+libraries, `otool -L` only `/usr/lib` and `/System`, `objdump -p` only Windows' DLLs. It writes the requirement it
+measured into the README (the newest `GLIBC_` symbol version on Linux; `LC_BUILD_VERSION`'s `minos` on macOS) and, on
+macOS, signs the bundle ad hoc (`codesign -s -`), so that macOS offers *Open Anyway* rather than reporting a damaged
+app. The archive holds the README (`src/gui/share/README.txt`, completed per platform), the example table and every
+licence: appelbe's GPL-3.0 and its source offer, FIGURE's MIT, `THIRD_PARTY.md` and the licence of each project
+FIGURE builds in (Dear ImGui, ImPlot, cimgui, cimplot, miniz: MIT; SDL3: zlib; IBM Plex: OFL-1.1; Lucide: ISC; ...).
+
+`appelbe-gui --self-test` runs, headless, every panel, a solve and a scan on worker threads and a PNG, and exits with
+status 0 only if each check passes: the smoke test of a package, run where nothing else is installed.
+
+**CI** (`.github/workflows/gui.yml`, project-owned): on Linux (the `gnu-16.2-gui` toolchain image), macOS 14 arm64
+(Homebrew's gfortran 16 through `setup-fortran`, the native layer with Apple clang, `MACOSX_DEPLOYMENT_TARGET=14.0`) and
+Windows (MSYS2 UCRT64): fetch, headless tests, release build, package, artifact; then each package unpacked on a clean
+runner and `--self-test`ed: a bare `debian:13` container, a macOS runner with `/opt/homebrew` moved away, a Windows
+runner with only `C:\Windows` on `PATH`. It runs on pushes that change the GUI or its packaging, by hand, and from
+`release.yml` on a tag, whose `gui-assets` job attaches the three archives to the release (a dispatch from a branch
+builds them as artifacts only: a dry run). The Linux package needs glibc 2.38 or newer: the newest symbol versions it uses
+(`fmod`, the C23 `strtol` family of the static libgfortran) are 2.38's, whether built in the Debian 13 image (glibc 2.41)
+or on Ubuntu 24.04 (2.39); measured by the script on both, 2026-11-20.
 
 ## The panels
 
@@ -94,7 +128,9 @@ src/gui/appelbe_gui_tasks.F90  solve_work, scan_work: a job's steps on a FIGURE 
 src/gui/appelbe_gui_export.F90 the .dat exports (the library's headers and writers, no FIGURE)
 src/gui/appelbe_gui_session.F90 the session file (no FIGURE)
 src/gui/tests/                 headless tests (test_gui_*) and their checks (gui_assert)
-src/gui/share/                 the example f0 table shipped with the program
+src/gui/appelbe_gui_selftest.F90 --self-test: the packaged program checks itself, headless
+src/gui/share/                 the example f0 table, the package README, the macOS Info.plist
+scripts/package_gui.sh         the archive of the running platform (checks its libraries)
 fobos-gui                      the GUI's build; FIGURE and PENF fetched into src/gui/third_party/
 ```
 

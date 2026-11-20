@@ -2,15 +2,18 @@
 program appelbe_gui
 !< appelbe-gui: a desktop GUI over the appelbe library for non-Maxwellian electron f0 (issue #2).
 !<
-!< Usage: appelbe-gui [SESSION] [--remote PORT] [--version] [--help]
+!< Usage: appelbe-gui [SESSION] [--remote PORT] [--self-test] [--version] [--help]
 !<   (none)         a window (SDL3 + OpenGL 3)
 !<   SESSION        a session file (File > Save session) to open at start
 !<   --remote PORT  no window: the interface is served to a web browser on PORT (FIGURE's remote mode), for a machine
 !<                  without a usable OpenGL; the address and its access token are printed
+!<   --self-test    no window: check, headless, that the program runs (every panel, a solve, a scan, a PNG); exit
+!<                  status 0 when every check passes (CI's smoke test of the packaged program)
 !<   --version      print the version and exit
 use, intrinsic :: iso_fortran_env, only : int32, output_unit, error_unit
 use figure,                        only : app_object
 use appelbe_gui_app,               only : gui_object, gui_version
+use appelbe_gui_selftest,          only : self_test
 
 implicit none
 type(app_object)   :: app    !< FIGURE's application.
@@ -27,7 +30,13 @@ case ('--version')
    write(output_unit, '(A)') 'appelbe-gui '//gui_version
    stop
 case ('--help', '-h')
-   write(output_unit, '(A)') 'usage: appelbe-gui [SESSION] [--remote PORT] [--version] [--help]'
+   write(output_unit, '(A)') 'usage: appelbe-gui [SESSION] [--remote PORT] [--self-test] [--version] [--help]'
+   stop
+case ('--self-test')
+   call app%init_headless(1280_int32, 860_int32)
+   call gui%init()
+   if (.not. self_test(app, gui)) error stop 1
+   call app%destroy()
    stop
 case ('--remote')
    call get_command_argument(2, arg)

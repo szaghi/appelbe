@@ -4,7 +4,11 @@ name: Release appelbe
 # scripts/install.sh), by the reusable workflow of fortran-toolchains (https://github.com/szaghi/fortran-toolchains).
 # Project-owned (fobos [scaffold] skip): the scaffold's install job is removed because the repository is private, and
 # install.sh downloads the release anonymously (404). Once the repository is public, drop the skip and run
-# fobis scaffold sync to restore it.
+# fobis scaffold sync to restore it (and keep the gui jobs below: sync would remove them).
+#
+# The GUI (issue #2): gui.yml builds, tests and packages appelbe-gui for Linux, macOS and Windows at the tag and
+# smoke-tests each package on a clean runner; gui-assets then attaches the three archives to the release. A dispatch
+# from a branch is a dry run: the packages are built and kept as the run's artifacts, nothing is attached.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
@@ -16,3 +20,27 @@ permissions:
 jobs:
   release:
     uses: szaghi/fortran-toolchains/.github/workflows/release.yml@v1
+
+  gui:
+    uses: ./.github/workflows/gui.yml
+    with:
+      ref: ${{ github.ref_name }}
+
+  gui-assets:
+    name: Attach the GUI packages to the release
+    needs: [release, gui]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: appelbe-gui-*
+        merge-multiple: true
+    - name: Upload to the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.ref_name }}
+      run: |
+        ls -l appelbe-gui-*
+        gh release upload "$TAG" appelbe-gui-"$TAG"-linux-x86_64.tar.gz appelbe-gui-"$TAG"-macos-arm64.zip \
+          appelbe-gui-"$TAG"-windows-x86_64.zip --clobber --repo "$GITHUB_REPOSITORY"

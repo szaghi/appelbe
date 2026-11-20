@@ -60,7 +60,11 @@ fobis fetch -f fobos-gui                       # PENF and FIGURE v0.8.0 (its nat
 fobis build -f fobos-gui --mode gui-gnu        # bin/gui/appelbe-gui
 fobis build -f fobos-gui --mode gui-tests-gnu  # headless tests into exe/gui/
 fobis rule -f fobos-gui --ex gui-tests         # run them
+fobis build -f fobos-gui --mode gui-release-gnu && scripts/package_gui.sh   # the archive users download
 ```
+
+Prebuilt archives for macOS (Apple Silicon), Windows and Linux are attached to each release: see
+[Install the GUI](https://szaghi.github.io/appelbe/guide/gui-install).
 
 See the [GUI guide](https://szaghi.github.io/appelbe/guide/gui).
 

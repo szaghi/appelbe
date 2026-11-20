@@ -57,6 +57,7 @@ const docs = [
     items: [
       { text: 'Non-Maxwellian electrons (ECE/TS)', link: '/guide/electrons' },
       { text: 'Desktop GUI',                       link: '/guide/gui' },
+      { text: 'Install the GUI',                   link: '/guide/gui-install' },
     ],
   },
   {
@@ -101,7 +102,7 @@ export default withMermaid({
         activeMatch: '^/guide/(features|kinetic-solver|algebraic-closure|transport|distributions|paper-setup|drivers|report|architecture)',
       },
       { text: 'Results', link: '/guide/validation', activeMatch: '^/guide/(validation|errata)' },
-      { text: 'ECE/TS', link: '/guide/electrons', activeMatch: '^/(guide/(electrons|gui)|manual/tutorial/08-electrons)' },
+      { text: 'ECE/TS', link: '/guide/electrons', activeMatch: '^/(guide/(electrons|gui|gui-install)|manual/tutorial/08-electrons)' },
       { text: 'API', link: '/api/' },
       {
         text: 'Project',

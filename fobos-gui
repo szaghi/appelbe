@@ -14,27 +14,44 @@ PENF     = https://github.com/szaghi/PENF :: branch=master
 figure   = https://github.com/szaghi/figure :: tag=v0.8.0 :: use=fobos :: mode=figure-static-gnu
 
 [modes]
-modes = gui-gnu gui-gnu-debug gui-tests-gnu gui-tests-gnu-debug
+modes = gui-gnu gui-gnu-debug gui-tests-gnu gui-tests-gnu-debug gui-release-gnu
 
 # FIGURE's native layer statically links SDL3; its system libraries differ by platform (FIGURE's fobos, same varsets):
 # linux is the default, `--varset macos` and `--varset windows` the others
 [varsets]
 default = linux
 
+# $RELEASE_*: the program shipped to users (gui-release-gnu, scripts/package_gui.sh): the compiler's runtime linked
+# statically, so the package needs no compiler on the user's machine. Linux: libgfortran, libquadmath, libgcc and
+# libstdc++ static (-l:libstdc++.a: gfortran's -static-libstdc++ does not apply to an explicit -lstdc++); glibc and the
+# libraries SDL3 opens at run time (X11, Wayland, OpenGL) stay the system's.
 [varset:linux]
-$NATIVE_LIBS   = figure_native SDL3 stdc++ dl pthread m
-$NATIVE_LFLAGS =
+$NATIVE_LIBS    = figure_native SDL3 stdc++ dl pthread m
+$NATIVE_LFLAGS  =
+$RELEASE_LIBS   = figure_native SDL3 :libstdc++.a dl pthread m
+$RELEASE_LFLAGS = -static-libgfortran -static-libquadmath -static-libgcc
 
+# macOS: libc++, libobjc, libiconv and the frameworks are the system's; libgfortran and libgcc static (Homebrew's gcc
+# ships the archives), so no /opt/homebrew path remains (otool -L, scripts/package_gui.sh checks it)
 [varset:macos]
-$NATIVE_LIBS   = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
-$NATIVE_LFLAGS = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
-                 -framework IOKit -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers
-                 -framework AVFoundation
+$NATIVE_LIBS    = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
+$NATIVE_LFLAGS  = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
+                  -framework IOKit -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers
+                  -framework AVFoundation
+$RELEASE_LIBS   = figure_native SDL3 figure_clang_rt c++ objc iconv pthread m
+$RELEASE_LFLAGS = -framework Cocoa -framework Carbon -framework Foundation -framework CoreVideo -framework CoreMedia
+                  -framework IOKit -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers
+                  -framework AVFoundation -static-libgfortran -static-libgcc
 
+# Windows (MSYS2 UCRT64): -static, every MinGW runtime (libgfortran, libquadmath, libgcc, libstdc++, winpthread) in
+# the .exe; the Windows DLLs (kernel32, user32, opengl32 loaded by SDL3, ...) are the system's
 [varset:windows]
-$NATIVE_LIBS   = figure_native SDL3 stdc++ pthread m ws2_32 kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version uuid
-                 advapi32 setupapi shell32
-$NATIVE_LFLAGS =
+$NATIVE_LIBS    = figure_native SDL3 stdc++ pthread m ws2_32 kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version
+                  uuid advapi32 setupapi shell32
+$NATIVE_LFLAGS  =
+$RELEASE_LIBS   = figure_native SDL3 stdc++ pthread m ws2_32 kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 version
+                  uuid advapi32 setupapi shell32
+$RELEASE_LFLAGS = -static
 
 [common-variables]
 # -frecursive: the library runs on FIGURE's worker threads (tasks): every local variable on the stack, none made static
@@ -73,6 +90,18 @@ output    = appelbe-gui
 template  = template-gui
 cflags    = $CFLAGS_GNU $DEBUG_GNU
 build_dir = ./bin/gui-debug/
+mod_dir   = ./mod/
+obj_dir   = ./obj/
+target    = ./src/gui/appelbe_gui.F90
+output    = appelbe-gui
+
+# the program shipped to users (scripts/package_gui.sh): -O2, the compiler's runtime linked statically ($RELEASE_*)
+[gui-release-gnu]
+template  = template-gui
+cflags    = $CFLAGS_GNU $OPT_GNU
+ext_libs  = $RELEASE_LIBS
+lflags    = $RELEASE_LFLAGS
+build_dir = ./bin/gui-release/
 mod_dir   = ./mod/
 obj_dir   = ./obj/
 target    = ./src/gui/appelbe_gui.F90

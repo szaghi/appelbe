@@ -1,0 +1,224 @@
+name: GUI
+
+# appelbe-gui (issue #2): build, headless tests and packages for Linux x86_64, macOS arm64 and Windows x86_64, then a
+# smoke test of each package on a clean runner, without the build's compilers and libraries (--self-test: every panel,
+# a solve and a scan on worker threads, a PNG). Project-owned, not managed by fobis scaffold. The packages are uploaded
+# as artifacts; release.yml calls this workflow on a tag and attaches them to the release.
+#
+# Cost: on a private repository macOS minutes count 10x and Windows 2x: the workflow runs on tags (from release.yml),
+# by hand, and on pushes and pull requests that change the GUI, its build or its packaging.
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]
+    paths: ['src/gui/**', 'fobos-gui', 'scripts/package_gui.sh', 'scripts/run_gui_tests.sh', '.github/workflows/gui.yml']
+  pull_request:
+    paths: ['src/gui/**', 'fobos-gui', 'scripts/package_gui.sh', 'scripts/run_gui_tests.sh', '.github/workflows/gui.yml']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'the git ref to build (a release tag)'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: gui-${{ github.workflow }}-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Linux: the project's toolchain image (gfortran 16.2, CMake, SDL3's X11/Wayland/DBus headers; Debian 13). The
+  # program needs glibc 2.38 or newer, the newest symbol versions it uses (package_gui.sh measures it, writes it in the
+  # README)
+  linux:
+    name: Linux x86_64 (build, tests, package)
+    runs-on: ubuntu-24.04
+    container: ghcr.io/szaghi/fortran-toolchains:gnu-16.2-gui
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    - name: Dependencies (PENF, FIGURE v0.8.0 and its native layer)
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        fobis fetch -f fobos-gui
+    - name: Headless tests
+      run: |
+        fobis build -f fobos-gui --mode gui-tests-gnu
+        bash scripts/run_gui_tests.sh exe/gui
+    - name: Release build and package
+      run: |
+        fobis build -f fobos-gui --mode gui-release-gnu
+        bash scripts/package_gui.sh | tee package.log
+        echo "ARCHIVE=$(tail -n 1 package.log)" >> "$GITHUB_ENV"
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: gui-test-logs-linux
+        path: exe/gui/*.log
+        if-no-files-found: ignore
+    - uses: actions/upload-artifact@v4
+      with:
+        name: appelbe-gui-linux
+        path: ${{ env.ARCHIVE }}
+        if-no-files-found: error
+
+  # macOS arm64: Homebrew's gfortran 16 (setup-fortran), the native layer with Apple clang (SDL needs it; libc++),
+  # libgfortran and libgcc linked statically (fobos-gui's varset macos), deployment target 14.0 (the Sonoma bottles of
+  # Homebrew's gcc on this runner: linking objects built for a newer macOS is refused below)
+  macos:
+    name: macOS arm64 (build, tests, package)
+    runs-on: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Fortran compiler
+      uses: fortran-lang/setup-fortran@v1
+      with:
+        compiler: gcc
+        version: 16
+    - name: Build tools
+      run: |
+        brew install ninja pkg-config
+        python -m pip install FoBiS.py
+    - name: Dependencies (PENF, FIGURE v0.8.0 and its native layer with Apple clang)
+      env:
+        CC: clang
+        CXX: clang++
+      run: |
+        ${FC} --version && clang++ --version && cmake --version
+        fobis fetch -f fobos-gui
+    - name: Headless tests
+      run: |
+        fobis build -f fobos-gui --mode gui-tests-gnu --varset macos
+        bash scripts/run_gui_tests.sh exe/gui
+    - name: Release build and package
+      run: |
+        fobis build -f fobos-gui --mode gui-release-gnu --varset macos 2>&1 | tee build-release.log
+        if grep -q "was built for newer macOS version" build-release.log; then
+          echo "objects built for a newer macOS than $MACOSX_DEPLOYMENT_TARGET: the minimum would be wrong"; exit 1
+        fi
+        otool -L bin/gui-release/appelbe-gui
+        bash scripts/package_gui.sh | tee package.log
+        echo "ARCHIVE=$(tail -n 1 package.log)" >> "$GITHUB_ENV"
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: gui-test-logs-macos
+        path: exe/gui/*.log
+        if-no-files-found: ignore
+    - uses: actions/upload-artifact@v4
+      with:
+        name: appelbe-gui-macos
+        path: ${{ env.ARCHIVE }}
+        if-no-files-found: error
+
+  # Windows: MSYS2 UCRT64 (FIGURE's Platforms workflow); the release build is -static (fobos-gui's varset windows)
+  windows:
+    name: Windows x86_64 (build, tests, package)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    - name: MSYS2 toolchain
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: git
+        # python-pydantic: FoBiS's typer needs pydantic, which pip cannot build there (pydantic-core needs Rust)
+        pacboy: >-
+          gcc-fortran:p cmake:p ninja:p pkgconf:p python:p python-pip:p python-pydantic:p
+    - name: FoBiS
+      run: python -m pip install --break-system-packages FoBiS.py
+    - name: Dependencies (PENF, FIGURE v0.8.0 and its native layer)
+      run: CC=gcc CXX=g++ fobis fetch -f fobos-gui
+    - name: Headless tests
+      run: |
+        fobis build -f fobos-gui --mode gui-tests-gnu --varset windows
+        bash scripts/run_gui_tests.sh exe/gui
+    - name: Release build and package
+      run: |
+        fobis build -f fobos-gui --mode gui-release-gnu --varset windows
+        bash scripts/package_gui.sh | tee package.log
+        echo "ARCHIVE=$(tail -n 1 package.log)" >> "$GITHUB_ENV"
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: gui-test-logs-windows
+        path: exe/gui/*.log
+        if-no-files-found: ignore
+    - uses: actions/upload-artifact@v4
+      with:
+        name: appelbe-gui-windows
+        path: ${{ env.ARCHIVE }}
+        if-no-files-found: error
+
+  # Smoke tests of the packages on clean machines: what a user unpacks, nothing else
+  smoke-linux:
+    name: Linux package on a bare Debian 13
+    needs: linux
+    runs-on: ubuntu-24.04
+    container: debian:13
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: appelbe-gui-linux
+    - name: Unpack and self-test (no compiler, no SDL3 in the image)
+      run: |
+        if command -v gfortran; then echo "the smoke image has a compiler: not a clean machine"; exit 1; fi
+        tar xzf appelbe-gui-*.tar.gz
+        cd appelbe-gui-*/
+        ./appelbe-gui --version
+        ./appelbe-gui --self-test
+
+  smoke-macos:
+    name: macOS package without Homebrew
+    needs: macos
+    runs-on: macos-14
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: appelbe-gui-macos
+    - name: Unpack and self-test (Homebrew moved away)
+      run: |
+        ditto -x -k appelbe-gui-*.zip .
+        app=$(ls -d appelbe-gui-*/appelbe-gui.app)
+        codesign --verify --deep --strict "$app"
+        sudo mv /opt/homebrew /opt/homebrew-away
+        "$app/Contents/MacOS/appelbe-gui" --version
+        "$app/Contents/MacOS/appelbe-gui" --self-test
+        sudo mv /opt/homebrew-away /opt/homebrew
+
+  smoke-windows:
+    name: Windows package outside MSYS2
+    needs: windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: appelbe-gui-windows
+    - name: Unpack and self-test (only Windows' own directories on PATH)
+      shell: pwsh
+      run: |
+        $zip = Get-ChildItem appelbe-gui-*.zip | Select-Object -First 1
+        Expand-Archive $zip.FullName -DestinationPath .
+        $dir = Get-ChildItem -Directory appelbe-gui-* | Select-Object -First 1
+        $env:PATH = "C:\Windows\system32;C:\Windows"
+        & "$($dir.FullName)\appelbe-gui.exe" --version
+        & "$($dir.FullName)\appelbe-gui.exe" --self-test
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

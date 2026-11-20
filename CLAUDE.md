@@ -41,6 +41,8 @@ fobis fetch -f fobos-gui          # the GUI's deps (PENF, FIGURE v0.8.0 + its na
 fobis build -f fobos-gui --mode gui-gnu        # bin/gui/appelbe-gui (gui-gnu-debug: debug flags, bin/gui-debug/)
 fobis build -f fobos-gui --mode gui-tests-gnu  # the GUI's headless tests src/gui/tests/test_gui_* into exe/gui/
 fobis rule -f fobos-gui --ex gui-tests         # scripts/run_gui_tests.sh exe/gui (run from the root: tests read src/gui/share)
+fobis build -f fobos-gui --mode gui-release-gnu && scripts/package_gui.sh  # build/package/appelbe-gui-vX.Y.Z-<os>-<arch>.*
+bin/gui-release/appelbe-gui --self-test        # headless self-check of the (packaged) program, exit 0 when ok
 ```
 
 - Run everything from the repo root: the drivers write to `./results/`, and the scripts assume the root.
@@ -217,6 +219,11 @@ module variable, `save`, or initialised local (audit table in `docs/guide/gui.md
 Exports use the library's headers/writers: for the default inputs (= the driver's reference case) they are byte for
 byte the driver's `results/electrons_{profile,f1,scan_*}.dat` (`test_gui_files` compares them when results/ exists).
 Sessions (`.ses`): `key = value`, ES25.16 reals (bit-exact round trip), a table's rows embedded.
+**Packaging** (`gui-release-gnu`, `scripts/package_gui.sh`, `.github/workflows/gui.yml`; release.yml's `gui`,
+`gui-assets` attach the archives on a tag): the compiler runtime static; the script refuses a program that loads a
+build-machine library and writes the measured minimum OS/glibc into the README. Linux needs glibc 2.38 (built in the
+Debian 13 image or on the Ubuntu 24.04 host alike: the newest symbols used are 2.38's). macOS: arm64, deployment target 14.0, ad-hoc signed, unsigned by Apple
+(*Open Anyway*). Nothing of the macOS/Windows packaging has run yet as of 2026-11-20 (no CI run without a push).
 
 ## Non-Maxwellian electrons (beyond the paper)
 
